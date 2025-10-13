@@ -1,33 +1,43 @@
 import { BACKEND_URL } from './config';
 
-function getAuthToken() {
+/**
+ * Fetch cloud snapshot from backend
+ * @returns {Promise<Object>} Snapshot data with metadata
+ */
+export async function fetchCloudSnapshot() {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const raw = window.localStorage.getItem('authToken');
-      return raw || null;
+    // Get auth token from localStorage (web) or secure storage (mobile)
+    let authToken;
+    if (typeof window !== 'undefined') {
+      authToken = localStorage.getItem('authToken');
+    } else {
+      // For mobile, you'd use secure storage here
+      const { secureGet } = require('./secureStorage');
+      authToken = await secureGet('authToken');
     }
-  } catch {}
-  return null;
-}
 
-export async function fetchCloudSnapshot(token) {
-  const authToken = token || getAuthToken();
-  if (!authToken) throw new Error('Missing auth token');
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timeout = setTimeout(() => controller?.abort(), 8000);
-  const res = await fetch(`${BACKEND_URL}/api/sync/import`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${authToken}` },
-    signal: controller?.signal,
-  });
-  clearTimeout(timeout);
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Sync fetch failed (${res.status}): ${body.slice(0, 100)}`);
+    if (!authToken) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await fetch(`${BACKEND_URL}/sync-import`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching cloud snapshot:', error);
+    throw error;
   }
-  const json = await res.json();
-  if (!json?.success) throw new Error(json?.error || 'Sync import failed');
-  return json.snapshot || {};
 }
 
 export default { fetchCloudSnapshot };

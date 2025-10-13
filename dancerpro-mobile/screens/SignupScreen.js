@@ -140,7 +140,7 @@ const SignupScreen = ({ navigation }) => {
         password_confirmation: formData.password,
       };
 
-      const requestUrl = `${BACKEND_URL}/api/auth/register`;
+      const requestUrl = `${BACKEND_URL}/auth-register`;
       console.log('🌐 Making request to:', requestUrl);
       console.log('📤 Signup data:', { ...signupData, password: '[HIDDEN]', passwordConfirmation: '[HIDDEN]' });
 
