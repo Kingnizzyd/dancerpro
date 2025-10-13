@@ -6,4 +6,4 @@
 [build.environment]
   # Set this in Netlify UI or as a secure env var
   EXPO_PUBLIC_BACKEND_URL = ""
-  NODE_VERSION = "18"
+  NODE_VERSION = "20"
