@@ -116,7 +116,11 @@
     "lastName": "User",
     "phoneNumber": null,
     "createdAt": "2025-10-08T16:24:05.816Z",
-    "lastLogin": "2025-10-08T16:54:58.822Z"
+    "lastLogin": "2025-10-08T16:54:58.822Z",
+    "webauthn": {
+      "credentials": [],
+      "currentChallenge": "I0Y0fqm0lrPrY4jM4ihEVtbHIe6AznZN0-qWZ0MspQs"
+    }
   },
   {
     "id": "1759940646432",
@@ -394,5 +398,15 @@
     "phoneNumber": null,
     "createdAt": "2025-10-10T07:41:25.344Z",
     "lastLogin": "2025-10-10T07:43:01.571Z"
+  },
+  {
+    "id": "1760088294446",
+    "email": "danteswife4@gmail.com",
+    "password": "$2b$10$1ix8Cb2zKv4h02xfJXYCa.tOLpBTsrWvGX28XeSnkophUdN8qrmT6",
+    "firstName": "Lindsay",
+    "lastName": "Jade",
+    "phoneNumber": null,
+    "createdAt": "2025-10-10T09:24:54.446Z",
+    "lastLogin": "2025-10-10T09:51:12.625Z"
   }
 ]

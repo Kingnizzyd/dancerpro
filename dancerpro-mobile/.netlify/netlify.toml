@@ -1,0 +1,28 @@
+plugins = []
+headers = []
+redirects = []
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "C:\\Users\\hasbe\\dancerpro\\dancerpro-mobile\\dist"
+publishOrigin = "config"
+commandOrigin = "config"
+base = "C:\\Users\\hasbe\\dancerpro\\dancerpro-mobile"
+command = "npx expo export -p web --output-dir dist && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js"
+
+[build.environment]
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
