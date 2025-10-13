@@ -33,6 +33,13 @@ export const Input = ({ placeholder, value, onChangeText, style, ...props }) => 
   />
 );
 
+// Card Component
+export const Card = ({ children, style, ...props }) => (
+  <View style={[styles.card, style]} {...props}>
+    {children}
+  </View>
+);
+
 // Toast Component (using Alert for simplicity)
 export const Toast = {
   show: (message, type = 'info') => {
@@ -132,5 +139,16 @@ const styles = StyleSheet.create({
   segmentedTextSelected: {
     color: '#007AFF',
     fontWeight: '600',
+  },
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    marginVertical: 8,
   },
 });
