@@ -1,8 +1,9 @@
 [build]
- command = "npx expo export -p web --output-dir dist && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js"
+ command = "npx expo export -p web --output-dir dist && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js && node scripts/copy-public.js"
  publish = "dist"
 
  [build.environment]
  # EXPO_PUBLIC_* variables are read during export and injection
  # Set in Netlify → Site Settings → Environment
  # Example: EXPO_PUBLIC_BACKEND_URL=https://<your-service>.onrender.com
+ NODE_VERSION = "18"
