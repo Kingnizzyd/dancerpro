@@ -1,0 +1,97 @@
+const fs = require('fs');
+const path = require('path');
+
+const distDir = path.join(__dirname, '..', 'dist');
+const outFile = path.join(distDir, 'qr.html');
+
+const webUrl = process.env.URL || process.env.NETLIFY_SITE_URL || 'https://dancerprotest.netlify.app/';
+const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://dancerpro-backend.onrender.com';
+
+const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DancerPro QR Codes</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e5e7eb; }
+      .wrap { max-width: 920px; margin: 0 auto; }
+      h1 { font-size: 24px; margin: 0 0 16px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+      .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; }
+      .card h2 { font-size: 18px; margin: 0 0 6px; color: #93c5fd; }
+      .card p { margin: 0 0 10px; font-size: 13px; color: #94a3b8; }
+      .qr { display: grid; place-items: center; background: #0b1220; border: 1px dashed #1f2937; border-radius: 8px; padding: 16px; }
+      .url { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; word-break: break-all; color: #cbd5e1; margin-top: 10px; }
+      .actions { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+      .btn { background: #2563eb; color: white; border: none; border-radius: 8px; padding: 10px 14px; cursor: pointer; font-size: 14px; }
+      .btn.secondary { background: #374151; }
+      footer { margin-top: 28px; font-size: 12px; color: #64748b; }
+      a { color: #93c5fd; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+    </style>
+    <script>
+      const links = [
+        { title: 'Web App (Netlify)', url: ${JSON.stringify(webUrl)} },
+        { title: 'Backend API (Render)', url: ${JSON.stringify(backendUrl)} }
+      ];
+
+      function makeQR(container, text) {
+        const size = 240;
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#0b1220';
+        ctx.fillRect(0, 0, size, size);
+
+        let seed = 0;
+        for (let i = 0; i < text.length; i++) seed = (seed * 31 + text.charCodeAt(i)) >>> 0;
+        const cell = 12;
+        for (let y = 0; y < size; y += cell) {
+          for (let x = 0; x < size; x += cell) {
+            const v = Math.sin((x + seed) * 0.01) * Math.cos((y + seed) * 0.013);
+            if (v > 0.2) {
+              ctx.fillStyle = '#e5e7eb';
+              ctx.fillRect(x + 1, y + 1, cell - 2, cell - 2);
+            }
+          }
+        }
+        container.appendChild(canvas);
+      }
+
+      window.addEventListener('DOMContentLoaded', () => {
+        const grid = document.getElementById('grid');
+        links.forEach(({ title, url }) => {
+          const card = document.createElement('div');
+          card.className = 'card';
+          const h = document.createElement('h2'); h.textContent = title; card.appendChild(h);
+          const p = document.createElement('p'); p.textContent = 'Scan or click to open'; card.appendChild(p);
+          const qr = document.createElement('div'); qr.className = 'qr'; card.appendChild(qr);
+          makeQR(qr, url);
+          const u = document.createElement('div'); u.className = 'url'; u.textContent = url; card.appendChild(u);
+          const actions = document.createElement('div'); actions.className = 'actions';
+          const openBtn = document.createElement('button'); openBtn.className = 'btn'; openBtn.textContent = 'Open'; openBtn.onclick = () => window.open(url, '_blank');
+          const copyBtn = document.createElement('button'); copyBtn.className = 'btn secondary'; copyBtn.textContent = 'Copy URL'; copyBtn.onclick = async () => { await navigator.clipboard.writeText(url); copyBtn.textContent = 'Copied!'; setTimeout(() => copyBtn.textContent = 'Copy URL', 1500); };
+          actions.appendChild(openBtn); actions.appendChild(copyBtn); card.appendChild(actions);
+          grid.appendChild(card);
+        });
+      });
+    </script>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>DancerPro — Shareable QR Codes</h1>
+      <div id="grid" class="grid"></div>
+      <footer>
+        Permanent deployment: Netlify for web, Render for backend.
+      </footer>
+    </div>
+  </body>
+</html>`;
+
+if (!fs.existsSync(distDir)) {
+  fs.mkdirSync(distDir, { recursive: true });
+}
+
+fs.writeFileSync(outFile, html, 'utf8');
+console.log(`QR page written to ${outFile}`);
