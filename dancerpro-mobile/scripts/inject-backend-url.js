@@ -18,14 +18,14 @@ try {
   // noop: will use whatever backendUrl is set to
 }
 if (!backendUrl) {
-  console.error('No valid backend URL resolved for injection. Aborting.');
-  process.exit(1);
+  console.warn('No valid backend URL resolved for injection. Skipping injection.');
+  process.exit(0);
 }
 
 const distIndex = path.join(__dirname, '..', 'dist', 'index.html');
 if (!fs.existsSync(distIndex)) {
-  console.error('dist/index.html not found. Run export before injection.');
-  process.exit(1);
+  console.warn('dist/index.html not found. Skipping backend URL injection.');
+  process.exit(0);
 }
 
 const html = fs.readFileSync(distIndex, 'utf8');
