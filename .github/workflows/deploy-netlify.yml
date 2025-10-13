@@ -30,7 +30,6 @@ jobs:
 
       - name: Add PWA assets
         run: node scripts/add-pwa-assets.js
-        run: node scripts/add-pwa-assets.js
 
       - name: Inject backend URL
         run: node scripts/inject-backend-url.js
