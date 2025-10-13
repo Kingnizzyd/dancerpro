@@ -1,9 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, Animated, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { shifts as sampleShifts, venues as sampleVenues, clients as sampleClients, getVenueById } from '../data/sampleData';
 import { openDb, getShiftsWithVenues, getShiftTransactionTotals, getAllVenues, getAllClients, insertShift, updateShift, deleteShift } from '../lib/db';
-import { Tag, Button, Input, Toast, Segmented } from '../components/UI';
+import { GradientButton, ModernInput, GradientCard, Toast } from '../components/UI';
+import { formatCurrency } from '../utils/formatters';
+import { Colors } from '../constants/Colors';
+
+const { width } = Dimensions.get('window');
 
 function exportShiftsCSV(rows) {
   const header = ['id','start','end','venueId','venueName','earnings','notes'];
@@ -35,7 +40,7 @@ function exportShiftsCSV(rows) {
 }
 
 export default function Shifts({ route }) {
-  const [items, setItems] = useState(Platform.OS === 'web' ? sampleShifts : []);
+  const [items, setItems] = useState(sampleShifts || []);
   const [totalsByShift, setTotalsByShift] = useState(new Map());
   const [venues, setVenues] = useState([]);
   const [addOpen, setAddOpen] = useState(false);
@@ -52,6 +57,7 @@ export default function Shifts({ route }) {
   const [endStr, setEndStr] = useState(new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString());
   const [toast, setToast] = useState({ message: '', type: 'info', visible: false });
   const [clientOptions, setClientOptions] = useState([]);
+  
   const clientsById = useMemo(() => {
     const map = new Map();
     (clientOptions || []).forEach(c => map.set(c.id, c));
@@ -60,7 +66,7 @@ export default function Shifts({ route }) {
 
   useEffect(() => {
     const db = openDb();
-    if (!db) return; // web fallback uses sample data
+    if (!db) return;
     (async () => {
       try {
         const rows = await getShiftsWithVenues(db);
@@ -73,7 +79,6 @@ export default function Shifts({ route }) {
     })();
   }, []);
 
-  // Load persisted shifts on web
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       const raw = window.localStorage.getItem('shifts');
@@ -103,7 +108,6 @@ export default function Shifts({ route }) {
     }
   }, []);
 
-  // Load clients for picker (native DB or web fallback)
   useEffect(() => {
     const db = openDb();
     if (db) {
@@ -132,60 +136,6 @@ export default function Shifts({ route }) {
     }
   }, []);
 
-  // Accept client filter from navigation params (native) or persisted web state
-  useEffect(() => {
-    const fromParams = route && route.params && route.params.clientId ? route.params.clientId : '';
-    if (fromParams) setClientFilterId(fromParams);
-    if (!fromParams && typeof window !== 'undefined' && window.localStorage) {
-      try {
-        const saved = window.localStorage.getItem('clientFilterId');
-        if (saved) setClientFilterId(saved);
-      } catch {}
-    }
-  }, [route]);
-
-  // Persist and load client filter on web
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try {
-        const saved = window.localStorage.getItem('clientFilterId');
-        if (saved) setClientFilterId(saved);
-        const savedSort = window.localStorage.getItem('sortByNet');
-        if (savedSort) setSortByNet(savedSort === 'true');
-      } catch {}
-    }
-  }, []);
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try { window.localStorage.setItem('clientFilterId', clientFilterId || ''); } catch {}
-    }
-  }, [clientFilterId]);
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try { window.localStorage.setItem('sortByNet', String(!!sortByNet)); } catch {}
-    }
-  }, [sortByNet]);
-
-  // Persist selected range (web) and restore on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try {
-        const raw = window.localStorage.getItem('shiftsDays');
-        const parsed = raw ? JSON.parse(raw) : null;
-        if (parsed === 7 || parsed === 30 || parsed === 90) setDays(parsed);
-      } catch {}
-    }
-  }, []);
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try { window.localStorage.setItem('shiftsDays', JSON.stringify(days)); } catch {}
-    }
-  }, [days]);
-
-  function validIso(s) {
-    return s && !isNaN(Date.parse(s));
-  }
-
   function applyClientFilter(list) {
     if (!clientFilterId) return list;
     return list.filter(s => s.clientId === clientFilterId);
@@ -213,448 +163,519 @@ export default function Shifts({ route }) {
     });
   }
 
-  async function handleEditShift() {
-    if (!editingShift) return;
+  const filteredItems = useMemo(() => {
+    let list = [...items];
+    list = applyClientFilter(list);
+    list = applyDays(list);
+    list = applySort(list);
+    return list;
+  }, [items, clientFilterId, days, sortByNet, totalsByShift]);
+
+  const upcomingShifts = useMemo(() => {
+    const now = new Date();
+    return filteredItems.filter(shift => new Date(shift.start) > now).slice(0, 3);
+  }, [filteredItems]);
+
+  const recentShifts = useMemo(() => {
+    const now = new Date();
+    return filteredItems.filter(shift => new Date(shift.start) <= now).slice(0, 5);
+  }, [filteredItems]);
+
+  const weeklyStats = useMemo(() => {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekShifts = filteredItems.filter(shift => new Date(shift.start) >= weekAgo);
     
-    const db = openDb();
-    const vId = venueId || editingShift.venueId;
-    const cId = clientId || editingShift.clientId;
-    const eVal = Number(earnings || editingShift.earnings);
-    const nVal = notes !== '' ? notes : editingShift.notes;
-    const start = validIso(startStr) ? new Date(startStr).toISOString() : editingShift.start;
-    const end = validIso(endStr) ? new Date(endStr).toISOString() : editingShift.end;
+    const totalEarnings = weekShifts.reduce((sum, shift) => sum + (shift.earnings || 0), 0);
+    const totalHours = weekShifts.reduce((sum, shift) => {
+      const start = new Date(shift.start);
+      const end = new Date(shift.end);
+      return sum + ((end - start) / (1000 * 60 * 60));
+    }, 0);
     
-    // validations
-    if (!vId) {
-      setToast({ message: 'Select a venue', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    if (!validIso(startStr) || !validIso(endStr)) {
-      setToast({ message: 'Enter valid ISO start/end times', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    if (new Date(end) <= new Date(start)) {
-      setToast({ message: 'End time must be after start', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    if (isNaN(eVal) || eVal < 0) {
-      setToast({ message: 'Earnings must be a non-negative number', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    
+    return {
+      shifts: weekShifts.length,
+      earnings: totalEarnings,
+      hours: totalHours,
+      avgPerHour: totalHours > 0 ? totalEarnings / totalHours : 0
+    };
+  }, [filteredItems]);
+
+  async function handleDeleteShift(shiftId) {
     try {
+      const db = openDb();
       if (db) {
-        await updateShift(db, editingShift.id, { 
-          venueId: vId, 
-          clientId: cId, 
-          start, 
-          end, 
-          earnings: eVal, 
-          notes: nVal 
-        });
+        await deleteShift(db, shiftId);
         const rows = await getShiftsWithVenues(db);
         setItems(rows);
         const map = await getShiftTransactionTotals(db);
         setTotalsByShift(map);
       } else {
-        const updatedShift = { 
-          ...editingShift, 
-          venueId: vId, 
-          clientId: cId, 
-          start, 
-          end, 
-          earnings: eVal, 
-          notes: nVal 
-        };
-        const venue = getVenueById(vId);
-        const nextList = items.map(item => 
-          item.id === editingShift.id 
-            ? { ...updatedShift, venueName: venue?.name }
-            : item
-        );
+        const nextList = items.filter(item => item.id !== shiftId);
         setItems(nextList);
         if (typeof window !== 'undefined' && window.localStorage) {
           try { window.localStorage.setItem('shifts', JSON.stringify(nextList)); } catch {}
-        }
-      }
-      
-      setEditOpen(false);
-      setEditingShift(null);
-      setVenueId('');
-      setClientId('');
-      setEarnings('');
-      setNotes('');
-      setStartStr(new Date().toISOString());
-      setEndStr(new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString());
-      setToast({ message: 'Shift updated', type: 'success', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-    } catch (e) {
-      console.warn('Update shift failed', e);
-      setToast({ message: 'Failed to update shift', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-    }
-  }
-
-  function handleOpenEdit(shift) {
-    setEditingShift(shift);
-    setVenueId(shift.venueId || '');
-    setClientId(shift.clientId || '');
-    setEarnings(shift.earnings?.toString() || '');
-    setNotes(shift.notes || '');
-    setStartStr(shift.start || new Date().toISOString());
-    setEndStr(shift.end || new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString());
-    setEditOpen(true);
-  }
-
-  async function handleAddShift() {
-    const db = openDb();
-    const vId = venueId || (venues[0]?.id || '');
-    const cId = clientId || null;
-    const eVal = Number(earnings || 0);
-    const nVal = notes || '';
-    const start = validIso(startStr) ? new Date(startStr).toISOString() : '';
-    const end = validIso(endStr) ? new Date(endStr).toISOString() : '';
-    // validations
-    if (!vId) {
-      setToast({ message: 'Select a venue', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    if (!validIso(startStr) || !validIso(endStr)) {
-      setToast({ message: 'Enter valid ISO start/end times', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    if (new Date(end) <= new Date(start)) {
-      setToast({ message: 'End time must be after start', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    if (isNaN(eVal) || eVal < 0) {
-      setToast({ message: 'Earnings must be a non-negative number', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    try {
-      if (db) {
-        await insertShift(db, { venueId: vId, clientId: cId, start, end, earnings: eVal, notes: nVal });
-        const rows = await getShiftsWithVenues(db);
-        setItems(rows);
-        const map = await getShiftTransactionTotals(db);
-        setTotalsByShift(map);
-      } else {
-        const newItem = { id: `s_${Date.now()}`, start, end, venueId: vId, clientId: cId, earnings: eVal, notes: nVal };
-        const venue = getVenueById(vId);
-        const nextList = [{ ...newItem, venueName: venue?.name }, ...items];
-        setItems(nextList);
-        if (typeof window !== 'undefined' && window.localStorage) {
-          try { window.localStorage.setItem('shifts', JSON.stringify(nextList)); } catch {}
-        }
-      }
-      setAddOpen(false);
-      setVenueId('');
-      setClientId('');
-      setEarnings('');
-      setNotes('');
-      setStartStr(new Date().toISOString());
-      setEndStr(new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString());
-      setToast({ message: 'Shift added', type: 'success', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-    } catch (e) {
-      console.warn('Add shift failed', e);
-      setToast({ message: 'Failed to add shift', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-    }
-  }
-
-  async function handleDeleteShift(id) {
-    const db = openDb();
-    try {
-      if (db) {
-        await deleteShift(db, id);
-        const rows = await getShiftsWithVenues(db);
-        setItems(rows);
-        const map = await getShiftTransactionTotals(db);
-        setTotalsByShift(map);
-      } else {
-        const next = items.filter(s => s.id !== id);
-        setItems(next);
-        if (typeof window !== 'undefined' && window.localStorage) {
-          try { window.localStorage.setItem('shifts', JSON.stringify(next)); } catch {}
         }
       }
       setToast({ message: 'Shift deleted', type: 'success', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
+      setTimeout(() => setToast({ ...toast, visible: false }), 2500);
     } catch (e) {
-      console.warn('Delete shift failed', e);
-      setToast({ message: 'Failed to delete shift', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
+      console.error('Delete shift failed:', e);
+      setToast({ message: 'Delete failed', type: 'error', visible: true });
+      setTimeout(() => setToast({ ...toast, visible: false }), 2500);
     }
+  }
+
+  function renderShiftCard({ item }) {
+    const start = new Date(item.start);
+    const end = new Date(item.end);
+    const duration = ((end - start) / (1000 * 60 * 60)).toFixed(1);
+    const client = clientsById.get(item.clientId);
+    const totals = totalsByShift.get(item.id);
+    const isUpcoming = start > new Date();
+
+    return (
+      <GradientCard style={styles.shiftCard}>
+        <View style={styles.shiftHeader}>
+          <View style={styles.shiftInfo}>
+            <Text style={styles.shiftVenue}>{item.venueName || 'Unknown Venue'}</Text>
+            <Text style={styles.shiftDate}>
+              {start.toLocaleDateString()} • {start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+            </Text>
+            {client && <Text style={styles.shiftClient}>with {client.name}</Text>}
+          </View>
+          <View style={[styles.shiftStatus, isUpcoming ? styles.upcomingStatus : styles.completedStatus]}>
+            <Text style={styles.statusText}>{isUpcoming ? 'UPCOMING' : 'COMPLETED'}</Text>
+          </View>
+        </View>
+        
+        <View style={styles.shiftMetrics}>
+          <View style={styles.metric}>
+            <Ionicons name="time" size={16} color={Colors.primary} />
+            <Text style={styles.metricText}>{duration}h</Text>
+          </View>
+          <View style={styles.metric}>
+            <Ionicons name="cash" size={16} color={Colors.success} />
+            <Text style={styles.metricText}>{formatCurrency(item.earnings || 0)}</Text>
+          </View>
+          {totals && (
+            <View style={styles.metric}>
+              <Ionicons name="trending-up" size={16} color={Colors.accent} />
+              <Text style={styles.metricText}>{formatCurrency(totals.net || 0)} net</Text>
+            </View>
+          )}
+        </View>
+        
+        {item.notes && (
+          <Text style={styles.shiftNotes}>{item.notes}</Text>
+        )}
+        
+        <View style={styles.shiftActions}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => {
+              setEditingShift(item);
+              setVenueId(item.venueId);
+              setClientId(item.clientId || '');
+              setEarnings(String(item.earnings || ''));
+              setNotes(item.notes || '');
+              setStartStr(item.start);
+              setEndStr(item.end);
+              setEditOpen(true);
+            }}
+          >
+            <Ionicons name="pencil" size={16} color={Colors.primary} />
+            <Text style={styles.actionText}>Edit</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => handleDeleteShift(item.id)}
+          >
+            <Ionicons name="trash" size={16} color={Colors.error} />
+            <Text style={[styles.actionText, { color: Colors.error }]}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      </GradientCard>
+    );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Shifts & Venues</Text>
-      <Segmented
-        options={[
-          { label: '7d', value: 7 },
-          { label: '30d', value: 30 },
-          { label: '90d', value: 90 },
-        ]}
-        value={days}
-        onChange={setDays}
-      />
-      {clientFilterId ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <Tag
-            text={`Client: ${clientsById.get(clientFilterId)?.name || clientFilterId}`}
-            backgroundColor="#222"
-            color="#ccc"
-          />
-          <Button
-            label="Clear"
-            variant="ghost"
-            onPress={() => setClientFilterId('')}
-          />
+      {/* Header */}
+      <LinearGradient
+        colors={[Colors.primary, Colors.accent]}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <Ionicons name="calendar" size={28} color="white" />
+            <View style={styles.headerText}>
+              <Text style={styles.headerTitle}>Shifts</Text>
+              <Text style={styles.headerSubtitle}>Manage your schedule</Text>
+            </View>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={() => exportShiftsCSV(filteredItems)}
+            >
+              <Ionicons name="download" size={20} color="white" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={() => setAddOpen(true)}
+            >
+              <Ionicons name="add" size={20} color="white" />
+            </TouchableOpacity>
+          </View>
         </View>
-      ) : null}
-      <View style={{ marginBottom: 12 }}>
-        <Button label="Add Shift" variant="primary" onPress={() => setAddOpen(true)} />
-        <View style={{ height: 8 }} />
-        <Button label="Export CSV" variant="ghost" onPress={() => exportShiftsCSV(items)} />
-        <View style={{ height: 8 }} />
-        <View style={{ gap: 6 }}>
-          <ClientPicker label="Filter by Client" clientId={clientFilterId} setClientId={setClientFilterId} options={clientOptions} />
-          {clientFilterId ? (
-            <Button label="Clear Filter" variant="ghost" onPress={() => setClientFilterId('')} />
-          ) : null}
-          <Button label={sortByNet ? 'Sorted by Net (desc)' : 'Sort by Net'} variant={sortByNet ? 'primary' : 'ghost'} onPress={() => setSortByNet(!sortByNet)} />
+      </LinearGradient>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Weekly Stats */}
+        <View style={styles.statsContainer}>
+          <GradientCard style={styles.statCard}>
+            <View style={styles.statContent}>
+              <Ionicons name="calendar-outline" size={24} color={Colors.primary} />
+              <Text style={styles.statValue}>{weeklyStats.shifts}</Text>
+              <Text style={styles.statLabel}>This Week</Text>
+            </View>
+          </GradientCard>
+          
+          <GradientCard style={styles.statCard}>
+            <View style={styles.statContent}>
+              <Ionicons name="cash-outline" size={24} color={Colors.success} />
+              <Text style={styles.statValue}>{formatCurrency(weeklyStats.earnings)}</Text>
+              <Text style={styles.statLabel}>Earnings</Text>
+            </View>
+          </GradientCard>
+          
+          <GradientCard style={styles.statCard}>
+            <View style={styles.statContent}>
+              <Ionicons name="time-outline" size={24} color={Colors.accent} />
+              <Text style={styles.statValue}>{weeklyStats.hours.toFixed(1)}h</Text>
+              <Text style={styles.statLabel}>Hours</Text>
+            </View>
+          </GradientCard>
+          
+          <GradientCard style={styles.statCard}>
+            <View style={styles.statContent}>
+              <Ionicons name="trending-up-outline" size={24} color={Colors.warning} />
+              <Text style={styles.statValue}>{formatCurrency(weeklyStats.avgPerHour)}</Text>
+              <Text style={styles.statLabel}>Per Hour</Text>
+            </View>
+          </GradientCard>
         </View>
-      </View>
-      <FlatList
-        data={applySort(applyClientFilter(applyDays(items)))}
-        keyExtractor={(item) => item.id}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        renderItem={({ item }) => (
-          <ShiftRow
-            item={{ ...item, shiftTotals: totalsByShift.get(item.id) }}
-            clientsById={clientsById}
-            onDelete={() => handleDeleteShift(item.id)}
-            onEdit={() => handleOpenEdit(item)}
-          />
+
+        {/* Time Range Selector */}
+        <View style={styles.filtersContainer}>
+          <Text style={styles.sectionTitle}>Time Range</Text>
+          <View style={styles.timeRangeButtons}>
+            {[7, 30, 90].map((d) => (
+              <TouchableOpacity
+                key={d}
+                style={[styles.timeButton, days === d && styles.timeButtonActive]}
+                onPress={() => setDays(d)}
+              >
+                <Text style={[styles.timeButtonText, days === d && styles.timeButtonTextActive]}>
+                  {d} Days
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Upcoming Shifts */}
+        {upcomingShifts.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Upcoming Shifts</Text>
+              <TouchableOpacity>
+                <Text style={styles.viewAllText}>View All</Text>
+              </TouchableOpacity>
+            </View>
+            {upcomingShifts.map((shift) => (
+              <View key={shift.id}>
+                {renderShiftCard({ item: shift })}
+              </View>
+            ))}
+          </View>
         )}
-      />
-      {addOpen && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Add Shift</Text>
-            <Text style={{ color: '#ccc', fontSize: 12 }}>Venue</Text>
-            <FlatList
-              data={venues.slice(0, 8)}
-              keyExtractor={(item) => item.id}
-              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-              renderItem={({ item }) => (
-                <Button
-                  label={item.name}
-                  variant={venueId === item.id ? 'primary' : 'ghost'}
-                  onPress={() => setVenueId(item.id)}
-                />
-              )}
-            />
-            <Input placeholder="Start time (ISO)" value={startStr} onChangeText={setStartStr} />
-            <Input placeholder="End time (ISO)" value={endStr} onChangeText={setEndStr} />
-            <Input placeholder="Earnings e.g. 600" value={earnings} onChangeText={setEarnings} keyboardType="numeric" />
-            <Input placeholder="Notes" value={notes} onChangeText={setNotes} />
-            <ClientPicker clientId={clientId} setClientId={setClientId} options={clientOptions} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
-              <Button label="Cancel" variant="ghost" onPress={() => setAddOpen(false)} />
-              <Button label="Add" variant="primary" onPress={handleAddShift} />
-            </View>
-          </View>
-        </View>
-      )}
-      {editOpen && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Edit Shift</Text>
-            <Text style={{ color: '#ccc', fontSize: 12 }}>Venue</Text>
-            <FlatList
-              data={venues.slice(0, 8)}
-              keyExtractor={(item) => item.id}
-              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-              renderItem={({ item }) => (
-                <Button
-                  label={item.name}
-                  variant={venueId === item.id ? 'primary' : 'ghost'}
-                  onPress={() => setVenueId(item.id)}
-                />
-              )}
-            />
-            <Input placeholder="Start time (ISO)" value={startStr} onChangeText={setStartStr} />
-            <Input placeholder="End time (ISO)" value={endStr} onChangeText={setEndStr} />
-            <Input placeholder="Earnings e.g. 600" value={earnings} onChangeText={setEarnings} keyboardType="numeric" />
-            <Input placeholder="Notes" value={notes} onChangeText={setNotes} />
-            <ClientPicker clientId={clientId} setClientId={setClientId} options={clientOptions} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
-              <Button label="Cancel" variant="ghost" onPress={() => {
-                setEditOpen(false);
-                setEditingShift(null);
-                setVenueId('');
-                setClientId('');
-                setEarnings('');
-                setNotes('');
-                setStartStr(new Date().toISOString());
-                setEndStr(new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString());
-              }} />
-              <Button label="Update" variant="primary" onPress={handleEditShift} />
-            </View>
-          </View>
-        </View>
-      )}
-      <Toast message={toast.message} type={toast.type} visible={toast.visible} />
-    </View>
-  );
-}
 
-function ShiftRow({ item, onDelete, onEdit, clientsById }) {
-  const fade = React.useRef(new Animated.Value(0)).current;
-  React.useEffect(() => {
-    Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-  }, []);
-  const venue = item.venueName ? { name: item.venueName } : getVenueById(item.venueId);
-  const start = new Date(item.start);
-  const end = new Date(item.end);
-  const range = `${start.toLocaleString()} → ${end.toLocaleTimeString()}`;
-  const totals = item.shiftTotals || null; // placeholder; will fill below
-  const client = item.clientId ? (clientsById ? clientsById.get(item.clientId) : null) : null;
-
-  return (
-    <Animated.View style={[styles.row, { opacity: fade }]}>
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={styles.venue}>{venue?.name || '—'}</Text>
-          <Tag text={new Date(item.start).toLocaleDateString()} backgroundColor="#222" color="#ccc" />
-          {client ? <Tag text={client.name} backgroundColor="#222" color="#ccc" /> : null}
-        </View>
-        <Text style={styles.range}>{range}</Text>
-        <Text style={styles.notes}>{item.notes}</Text>
-        {totals ? (
-          <Text style={styles.txNet}>Tx Net: ${totals.net} (Income ${totals.income} • Expense ${totals.expense})</Text>
-        ) : null}
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        {Platform.OS !== 'web' ? <Ionicons name="cash-outline" size={14} color="#06d6a0" /> : null}
-        <Text style={styles.earnings}>${item.earnings}</Text>
-        <Button label="Edit" variant="ghost" onPress={onEdit} />
-        <Button label="Delete" variant="ghost" onPress={onDelete} />
-      </View>
-    </Animated.View>
-  );
-}
-
-function ClientPicker({ clientId, setClientId, options = [], label = 'Attach to Client' }) {
-  const [open, setOpen] = useState(false);
-  const list = options || [];
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ color: '#ccc', fontSize: 12 }}>{label}</Text>
-      <Button label={clientId ? `Selected: ${clientId}` : 'Pick Client'} variant="ghost" onPress={() => setOpen(true)} />
-      {open && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Select Client</Text>
-            <FlatList
-              data={(list || []).slice(0, 10)}
-              keyExtractor={(item) => item.id}
-              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-              renderItem={({ item }) => (
-                <Button
-                  label={item.name}
-                  variant={clientId === item.id ? 'primary' : 'ghost'}
-                  onPress={() => { setClientId(item.id); setOpen(false); }}
-                />
-              )}
-            />
-            <Button label="Close" variant="ghost" onPress={() => setOpen(false)} />
+        {/* Recent Shifts */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Shifts</Text>
+            <TouchableOpacity onPress={() => setSortByNet(!sortByNet)}>
+              <Text style={styles.sortText}>
+                {sortByNet ? 'By Net' : 'By Date'}
+              </Text>
+            </TouchableOpacity>
           </View>
+          
+          {recentShifts.length === 0 ? (
+            <GradientCard style={styles.emptyCard}>
+              <View style={styles.emptyState}>
+                <Ionicons name="calendar-outline" size={48} color={Colors.textSecondary} />
+                <Text style={styles.emptyTitle}>No shifts yet</Text>
+                <Text style={styles.emptySubtitle}>Add your first shift to get started</Text>
+                <GradientButton
+                  title="Add Shift"
+                  onPress={() => setAddOpen(true)}
+                  style={styles.emptyButton}
+                />
+              </View>
+            </GradientCard>
+          ) : (
+            recentShifts.map((shift) => (
+              <View key={shift.id}>
+                {renderShiftCard({ item: shift })}
+              </View>
+            ))
+          )}
         </View>
+      </ScrollView>
+
+      {toast.visible && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ ...toast, visible: false })}
+        />
       )}
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
-    padding: 16,
+    backgroundColor: Colors.background,
   },
-  heading: {
-    color: '#f5f5f5',
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 12,
+  header: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
   },
-  row: {
-    backgroundColor: '#121212',
-    borderRadius: 12,
-    padding: 12,
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  venue: {
-    color: '#ff2d90',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  range: {
-    color: '#ccc',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  notes: {
-    color: '#999',
-    fontSize: 12,
-    marginTop: 6,
-  },
-  earnings: {
-    color: '#06d6a0',
-    fontWeight: '700',
-    fontSize: 16,
+  headerText: {
     marginLeft: 12,
   },
-  txNet: {
-    color: '#ffd166',
-    fontSize: 12,
-    marginTop: 6,
-  },
-  separator: { height: 12 },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalSheet: {
-    width: '90%',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
-    gap: 10,
-  },
-  modalTitle: {
-    color: '#f5f5f5',
-    fontSize: 18,
+  headerTitle: {
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: 6,
+    color: 'white',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+  },
+  headerButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginLeft: 8,
+  },
+  content: {
+    flex: 1,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  statCard: {
+    width: '48%',
+    marginRight: '2%',
+    marginBottom: 12,
+    padding: 16,
+  },
+  statContent: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+    marginTop: 8,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  filtersContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  timeRangeButtons: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 4,
+  },
+  timeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  timeButtonActive: {
+    backgroundColor: Colors.primary,
+  },
+  timeButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+  },
+  timeButtonTextActive: {
+    color: 'white',
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  viewAllText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '500',
+  },
+  sortText: {
+    fontSize: 14,
+    color: Colors.accent,
+    fontWeight: '500',
+  },
+  shiftCard: {
+    padding: 16,
+    marginBottom: 12,
+  },
+  shiftHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  shiftInfo: {
+    flex: 1,
+  },
+  shiftVenue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  shiftDate: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  shiftClient: {
+    fontSize: 12,
+    color: Colors.primary,
+    marginTop: 2,
+  },
+  shiftStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  upcomingStatus: {
+    backgroundColor: Colors.warning + '20',
+  },
+  completedStatus: {
+    backgroundColor: Colors.success + '20',
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  shiftMetrics: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  metric: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  metricText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.text,
+    marginLeft: 4,
+  },
+  shiftNotes: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
+    marginBottom: 12,
+  },
+  shiftActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginLeft: 8,
+  },
+  actionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.primary,
+    marginLeft: 4,
+  },
+  emptyCard: {
+    padding: 32,
+  },
+  emptyState: {
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text,
+    marginTop: 16,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  emptyButton: {
+    paddingHorizontal: 24,
   },
 });

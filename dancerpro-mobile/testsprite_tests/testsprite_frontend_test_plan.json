@@ -1,0 +1,626 @@
+[
+  {
+    "id": "TC001",
+    "title": "User Signup Success",
+    "description": "Verify that a new user can successfully sign up using valid email and password, triggering JWT issuance and user creation.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to signup screen"
+      },
+      {
+        "type": "action",
+        "description": "Enter a valid, unused email address and a valid password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the signup form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify account is created and JWT token is issued"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm user is redirected to the dashboard"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "User Signup with Existing Email",
+    "description": "Verify system prevents account creation when signing up with an email already registered.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to signup screen"
+      },
+      {
+        "type": "action",
+        "description": "Enter an email address that already exists and a valid password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the signup form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify appropriate error message is shown indicating email is in use"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user remains on signup screen"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Successful Login with Valid Credentials",
+    "description": "Verify existing users can log in successfully with correct email and password and JWT token is provided.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to login screen"
+      },
+      {
+        "type": "action",
+        "description": "Input valid registered email and correct password"
+      },
+      {
+        "type": "action",
+        "description": "Submit login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify JWT token is issued"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm redirection to user dashboard"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Login Failure with Invalid Credentials",
+    "description": "Verify login attempt fails with incorrect email or password and shows meaningful error message.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to login screen"
+      },
+      {
+        "type": "action",
+        "description": "Enter registered email with wrong password"
+      },
+      {
+        "type": "action",
+        "description": "Submit login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error message explaining invalid credentials is shown"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user remains on login screen"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Password Reset Flow Success",
+    "description": "Verify user can request password reset and successfully change password through the provided token link.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to password reset screen"
+      },
+      {
+        "type": "action",
+        "description": "Enter registered email to request password reset"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify email with reset token is sent"
+      },
+      {
+        "type": "action",
+        "description": "Use token to submit a new valid password"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify password is updated and user can log in with new password"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "WebAuthn Enrollment and Authentication",
+    "description": "Verify a user can successfully enroll in WebAuthn and later authenticate with WebAuthn-enabled device.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to security settings"
+      },
+      {
+        "type": "action",
+        "description": "Enroll a WebAuthn device by completing registration flow"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify WebAuthn device is registered successfully"
+      },
+      {
+        "type": "action",
+        "description": "Log out and navigate to login screen"
+      },
+      {
+        "type": "action",
+        "description": "Select WebAuthn login option and authenticate using enrolled device"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify successful login with WebAuthn and JWT issuance"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Dashboard Displays Real-Time KPIs",
+    "description": "Verify the dashboard loads real-time key performance indicators, earnings, top clients, venues, and outfits.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as a valid user"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dashboard components render with correct recent data"
+      },
+      {
+        "type": "assertion",
+        "description": "Change data remotely and verify dashboard updates in real-time"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Client Management CRUD",
+    "description": "Verify user can create, read, update and delete client records with accurate tracking of relationships and earnings.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to client management screen"
+      },
+      {
+        "type": "action",
+        "description": "Add a new client with all required fields"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify new client appears in client list with correct details"
+      },
+      {
+        "type": "action",
+        "description": "Edit client details and save"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updated client details are properly saved and displayed"
+      },
+      {
+        "type": "action",
+        "description": "Delete a client"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify client is removed from the list and associated earnings data is updated"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Shift Management Scheduling and Tracking",
+    "description": "Verify shifts can be created, edited, tracked for duration, and queried historically with earnings details.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to shift management screen"
+      },
+      {
+        "type": "action",
+        "description": "Create a new shift with valid start time, end time, client, and venue"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify shift appears with correct duration and estimated earnings"
+      },
+      {
+        "type": "action",
+        "description": "Edit shift details and save"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updated shift details are displayed correctly"
+      },
+      {
+        "type": "action",
+        "description": "View historical shifts filtering by date range"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify filtered shifts match criteria and earnings summarized"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Outfit Management ROI and Performance Analysis",
+    "description": "Verify outfits can be added, expenses inputted, ROI calculated, and performance recommendations rendered.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to outfit management screen"
+      },
+      {
+        "type": "action",
+        "description": "Add new outfit record with expense details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify expense is tracked and ROI is accurately calculated based on earnings attributed"
+      },
+      {
+        "type": "assertion",
+        "description": "Check for performance recommendation display based on outfit ROI metrics"
+      },
+      {
+        "type": "action",
+        "description": "Edit outfit details and save"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updates reflect in expense tracking and ROI"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Venue Management with Location and Relationship Tracking",
+    "description": "Verify venue records can be managed with location data, relationships to clients, and performance analytics.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to venue management screen"
+      },
+      {
+        "type": "action",
+        "description": "Create a new venue with accurate location and relevant details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify venue appears with location on map if applicable"
+      },
+      {
+        "type": "action",
+        "description": "Link venue to clients and track relationships"
+      },
+      {
+        "type": "assertion",
+        "description": "Validate relationship data integrity and performance metrics associated with venue"
+      },
+      {
+        "type": "action",
+        "description": "Edit venue details and save"
+      },
+      {
+        "type": "assertion",
+        "description": "Ensure updates correctly applied and displayed"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Financial Management Transaction CRUD and Filtering",
+    "description": "Validate financial transactions can be added, edited, filtered by various criteria, and exported correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to financial management screen"
+      },
+      {
+        "type": "action",
+        "description": "Add new income and expense transactions with complete details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify transactions are saved and listed accurately"
+      },
+      {
+        "type": "action",
+        "description": "Edit existing transaction and save"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm updated transaction details"
+      },
+      {
+        "type": "action",
+        "description": "Apply filters on date, type, amount, client, or venue"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify filtered transaction list matches criteria"
+      },
+      {
+        "type": "action",
+        "description": "Export transaction data"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify export file correctness and accuracy"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Real-time Communication via WebSocket",
+    "description": "Validate message sending, receiving, notifications, and collaboration features function reliably through WebSocket.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in with two different users on separate devices or sessions"
+      },
+      {
+        "type": "action",
+        "description": "Send a message from user A to user B"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user B receives the message promptly"
+      },
+      {
+        "type": "action",
+        "description": "Verify real-time updates and notifications trigger correctly"
+      },
+      {
+        "type": "action",
+        "description": "Test collaboration features such as shared shift or client updates via WebSocket"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify collaborators see updates in real-time without manual refresh"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Cloud Synchronization with Offline Capability and Conflict Resolution",
+    "description": "Ensure cloud sync works bi-directionally with offline data handling and automatic conflict resolution.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Make data changes on device A while online"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify data syncs to cloud and is reflected on device B promptly"
+      },
+      {
+        "type": "action",
+        "description": "Make conflicting changes on device A and device B while offline"
+      },
+      {
+        "type": "action",
+        "description": "Reconnect devices to network"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify conflict resolution occurs automatically and data remains consistent across devices"
+      },
+      {
+        "type": "action",
+        "description": "Test data backup and restoration procedures"
+      },
+      {
+        "type": "assertion",
+        "description": "Ensure backups store complete data and restoration completes without error"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "User Security Settings Persistence and Enforcement",
+    "description": "Verify user security preferences, including password changes and privacy settings, persist and are enforced.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to security settings screen"
+      },
+      {
+        "type": "action",
+        "description": "Change password successfully"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify new password allows login and old password is rejected"
+      },
+      {
+        "type": "action",
+        "description": "Modify privacy settings and save"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify privacy settings are retained on logout/login"
+      },
+      {
+        "type": "action",
+        "description": "Enroll and disable WebAuthn devices, verify changes apply instantly"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Logout Flow and JWT Token Invalidation",
+    "description": "Verify that a user can log out securely, session tokens are invalidated, and subsequent actions require re-login.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in successfully"
+      },
+      {
+        "type": "action",
+        "description": "Click logout"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify JWT token invalidation on backend"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm user is redirected to login screen"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to access restricted page after logout"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify access is denied and login required"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Performance Under Load",
+    "description": "Verify the application maintains smooth runtime performance with multiple users and data operations running simultaneously.",
+    "category": "performance",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Simulate multiple concurrent users performing CRUD actions on clients, shifts, and financial data"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify UI responsiveness remains high with no crashes or significant delays"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify backend APIs respond within acceptable time thresholds"
+      },
+      {
+        "type": "assertion",
+        "description": "Validate no data loss occurs and synchronization remains consistent"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Cross-Platform UI Consistency",
+    "description": "Confirm UI components render and behave consistently across mobile (iOS, Android) and web platforms.",
+    "category": "ui",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Launch application on various supported devices and browsers"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify common UI components (buttons, forms, lists, navigation) are visually consistent and accessible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify navigation and interaction flows function as expected on all platforms"
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "Database Operations and Data Persistence",
+    "description": "Verify SQLite database backend properly stores, queries, and persists data with encryption and optimized performance.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Create multiple records for clients, venues, outfits, shifts, and finances"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify data is persisted correctly by querying from database directly"
+      },
+      {
+        "type": "action",
+        "description": "Update and delete records and verify data integrity"
+      },
+      {
+        "type": "assertion",
+        "description": "Test encrypted storage and data confidentiality"
+      }
+    ]
+  },
+  {
+    "id": "TC020",
+    "title": "Error Handling and User Feedback",
+    "description": "Verify application displays appropriate error messages for failures and utilizes error boundaries to prevent crashes.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Simulate network failure during data submission"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify meaningful error message is displayed and user can retry"
+      },
+      {
+        "type": "action",
+        "description": "Cause unexpected application error (e.g. null data)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error boundary catches error and app does not crash"
+      },
+      {
+        "type": "assertion",
+        "description": "Ensure logs or feedback prompt is displayed to allow user reporting"
+      }
+    ]
+  }
+]

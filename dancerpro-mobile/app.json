@@ -17,7 +17,7 @@
       "versionCode": 1
     },
     "extra": {
-  "backendUrl": "https://dancerpro-backend.onrender.com",
+  "backendUrl": "http://localhost:3001",
       "eas": {
         "projectId": "246ca3d5-166b-4a8d-98ee-a06a8ca82b1c"
       }

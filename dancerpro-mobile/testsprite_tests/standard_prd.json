@@ -1,0 +1,228 @@
+{
+  "meta": {
+    "project": "DancerPro",
+    "date": "2025-10-04",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "DancerPro is a comprehensive mobile and web application designed for entertainment professionals to efficiently manage work shifts, clients, venues, outfits, and finances. Featuring secure authentication, real-time communication, cloud synchronization, and advanced analytics, it empowers users with actionable insights and seamless data management across devices.",
+  "core_goals": [
+    "Provide a robust and secure authentication system supporting login, signup, password management, and WebAuthn.",
+    "Enable efficient management and tracking of work shifts, clients, venues, outfits, and earnings.",
+    "Offer comprehensive financial management and analytics for income and expense optimization.",
+    "Facilitate real-time communication and collaboration via WebSocket.",
+    "Ensure seamless cloud synchronization with offline capabilities and conflict resolution.",
+    "Deliver an intuitive dashboard summarizing key metrics and performance analytics.",
+    "Maintain strong user security settings including password and privacy controls.",
+    "Support scalable deployment with smooth performance across platforms."
+  ],
+  "key_features": [
+    "Complete Authentication System with JWT, password reset, and WebAuthn support.",
+    "Dashboard Analytics with real-time KPIs, earnings, client, venue and outfit insights.",
+    "Client Management for tracking, relationships, earnings, and performance metrics.",
+    "Shift Management including scheduling, tracking, duration, and historical data.",
+    "Financial Management for money tracking, expenses, transaction filtering, and export.",
+    "Outfit Management with expense tracking, ROI analysis, and performance recommendations.",
+    "Venue Management with location-based insights and relationship tracking.",
+    "Security Settings for user preferences, password, and enhanced authentication.",
+    "Cloud Synchronization for backup, cross-device consistency, offline data support, and conflict handling.",
+    "Real-time Communication via WebSocket with messaging, notifications, and collaboration features.",
+    "AI Insights and Advanced Analytics dashboards for business intelligence (future enhancements)."
+  ],
+  "user_flow_summary": [
+    "User signs up or logs in with email/password; credentials validated and JWT tokens issued; password reset available for recovery.",
+    "After login, user lands on the Dashboard showing key analytics and recent activity with real-time updates.",
+    "User manages clients, shifts, outfits, venues; adds and edits records; tracks financial transactions and expenses.",
+    "Changes propagate instantly via WebSocket; cross-device sync ensures consistency; notifications inform users.",
+    "User accesses Security Settings to update preferences, password, and configure WebAuthn for enhanced security.",
+    "Data changes synchronize automatically to cloud; backups preserve data; offline use supported with conflict resolution.",
+    "User securely logs out; session ends and tokens invalidated; data remains synchronized."
+  ],
+  "validation_criteria": [
+    "Successful completion of authentication flows: signup, login, password reset, and WebAuthn.",
+    "Fully functional CRUD operations across all data management modules.",
+    "Dashboard updates accurately and in real-time with correct analytics.",
+    "Real-time communication transmits messages reliably and promptly.",
+    "Cloud synchronization maintains data integrity across devices and recovers from conflicts.",
+    "User security preferences and settings persist and apply correctly.",
+    "UI components render and behave consistently across supported devices and platforms.",
+    "Backend APIs respond efficiently within defined performance thresholds.",
+    "Real-time updates exhibit minimal latency and high reliability.",
+    "Database operations are optimized for responsiveness and scalability.",
+    "Deployment pipelines produce stable, production-ready builds.",
+    "Application maintains smooth runtime behavior under expected user load.",
+    "System architecture supports horizontal scalability and monitoring for performance and errors."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "JavaScript",
+      "React Native",
+      "Expo",
+      "React Navigation",
+      "Node.js",
+      "Express.js",
+      "SQLite",
+      "Socket.io",
+      "JWT",
+      "bcrypt",
+      "Netlify Functions",
+      "WebAuthn",
+      "Twilio",
+      "React Native Web"
+    ],
+    "features": [
+      {
+        "name": "Authentication System",
+        "description": "Complete user authentication with JWT tokens, login, signup, password reset, and WebAuthn support",
+        "files": [
+          "screens/LoginScreen.js",
+          "screens/SignupScreen.js",
+          "screens/PasswordReset.js",
+          "context/AuthContext.js",
+          "lib/security.js",
+          "lib/webauthn.js"
+        ]
+      },
+      {
+        "name": "Dashboard Analytics",
+        "description": "Main dashboard with real-time KPIs, earnings analytics, top clients, venues, and financial summaries",
+        "files": [
+          "screens/Dashboard.js",
+          "data/sampleData.js",
+          "utils/formatters.js"
+        ]
+      },
+      {
+        "name": "Client Management",
+        "description": "Client tracking, relationship management, earnings analytics per client, and performance metrics",
+        "files": [
+          "screens/Clients.js",
+          "lib/db.js"
+        ]
+      },
+      {
+        "name": "Financial Management",
+        "description": "Money tracking, expense management, transaction filtering, export functionality, and financial analytics",
+        "files": [
+          "screens/Money.js",
+          "utils/formatters.js",
+          "lib/db.js"
+        ]
+      },
+      {
+        "name": "Shift Management",
+        "description": "Work shift scheduling, tracking, duration monitoring, earnings per shift, and historical data",
+        "files": [
+          "screens/Shifts.js",
+          "lib/db.js"
+        ]
+      },
+      {
+        "name": "Outfit Management",
+        "description": "Outfit tracking with earnings analytics, expense tracking, ROI analysis, and performance recommendations",
+        "files": [
+          "screens/Outfits.js",
+          "lib/db.js"
+        ]
+      },
+      {
+        "name": "Venue Management",
+        "description": "Venue tracking, performance analytics, location-based insights, and venue relationship management",
+        "files": [
+          "screens/Venues.js",
+          "lib/db.js"
+        ]
+      },
+      {
+        "name": "Security Settings",
+        "description": "User security preferences, password management, WebAuthn configuration, and privacy controls",
+        "files": [
+          "screens/SecuritySettings.js",
+          "lib/security.js",
+          "lib/webauthn.js"
+        ]
+      },
+      {
+        "name": "Cloud Synchronization",
+        "description": "Data backup and restoration, cross-device sync, offline data management, and conflict resolution",
+        "files": [
+          "lib/syncService.js",
+          "lib/api.js",
+          "lib/db.js"
+        ]
+      },
+      {
+        "name": "Real-time Communication",
+        "description": "WebSocket-based messaging, real-time updates, notification system, and collaborative features",
+        "files": [
+          "services/WebSocketService.js",
+          "navigation/MessagingStack.js"
+        ]
+      },
+      {
+        "name": "AI Insights",
+        "description": "AI-powered analytics and insights for performance optimization and business intelligence",
+        "files": [
+          "screens/AIInsights.js"
+        ]
+      },
+      {
+        "name": "Advanced Analytics",
+        "description": "Comprehensive analytics dashboard with detailed reporting and data visualization",
+        "files": [
+          "screens/AnalyticsScreen.js"
+        ]
+      },
+      {
+        "name": "Database Layer",
+        "description": "SQLite database management with secure storage, data persistence, and query optimization",
+        "files": [
+          "lib/db.js",
+          "lib/secureStorage.js"
+        ]
+      },
+      {
+        "name": "UI Components",
+        "description": "Reusable UI components including buttons, cards, inputs, tags, and themed styling",
+        "files": [
+          "components/UI/index.js",
+          "constants/Colors.js"
+        ]
+      },
+      {
+        "name": "Error Handling",
+        "description": "Comprehensive error boundary, error handling utilities, and user feedback systems",
+        "files": [
+          "components/ErrorBoundary.js",
+          "utils/errorHandler.js"
+        ]
+      },
+      {
+        "name": "Backend API",
+        "description": "Express.js server with authentication endpoints, data management, and real-time communication",
+        "files": [
+          "backend/server.js",
+          "backend/package.json"
+        ]
+      },
+      {
+        "name": "Netlify Functions",
+        "description": "Serverless backend functions for authentication, data management, and API endpoints",
+        "files": [
+          "netlify/functions/package.json",
+          "netlify.toml"
+        ]
+      },
+      {
+        "name": "Build and Deployment",
+        "description": "Automated build scripts, PWA assets, QR code generation, and deployment configuration",
+        "files": [
+          "scripts/add-pwa-assets.js",
+          "scripts/copy-public.js",
+          "scripts/generate-qr.js",
+          "scripts/inject-backend-url.js",
+          "scripts/static-server.js"
+        ]
+      }
+    ]
+  }
+}

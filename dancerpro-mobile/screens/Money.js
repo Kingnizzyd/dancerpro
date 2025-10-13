@@ -1,11 +1,14 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, Animated, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, Animated, Platform, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { transactions as sampleTransactions, clients as sampleClients } from '../data/sampleData';
 import { openDb, getRecentTransactions, computeTransactionTotals, insertTransaction, getShiftsWithVenues, deleteTransaction, getAllClients, getAllOutfits, getAllVenues, getKpiSnapshot } from '../lib/db';
-import { Card, Button, Input, Segmented, Toast, Tag } from '../components/UI';
+import { GradientCard, GradientButton, ModernInput, Toast } from '../components/UI';
 import { formatCurrency } from '../utils/formatters';
 import { Colors } from '../constants/Colors';
+
+const { width } = Dimensions.get('window');
 
 export default function Money({ route }) {
   const [items, setItems] = useState(Platform.OS === 'web' ? sampleTransactions : []);
@@ -455,8 +458,8 @@ export default function Money({ route }) {
             <ShiftPicker shiftId={shiftId} setShiftId={setShiftId} options={shiftOptions} />
             <ClientPicker clientId={clientId} setClientId={setClientId} options={clientOptions} />
             <OutfitPicker outfitId={outfitId} setOutfitId={setOutfitId} options={outfitOptions} />
-            <Button label="Add" onPress={handleAdd} variant="primary" />
-            <Button label="Cancel" onPress={() => setShowForm(false)} variant="ghost" />
+            <Button title="Add" onPress={handleAdd} variant="primary" />
+            <Button title="Cancel" onPress={() => setShowForm(false)} variant="ghost" />
           </View>
         ) : showQuickForm ? (
           <QuickTransactionForm

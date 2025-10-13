@@ -106,7 +106,7 @@
     "lastName": "User",
     "phoneNumber": null,
     "createdAt": "2025-10-08T07:21:50.484Z",
-    "lastLogin": null
+    "lastLogin": "2025-10-13T18:03:39.522Z"
   },
   {
     "id": "1759940645816",
@@ -116,7 +116,7 @@
     "lastName": "User",
     "phoneNumber": null,
     "createdAt": "2025-10-08T16:24:05.816Z",
-    "lastLogin": "2025-10-08T16:54:58.822Z",
+    "lastLogin": "2025-10-13T18:32:05.331Z",
     "webauthn": {
       "credentials": [],
       "currentChallenge": "I0Y0fqm0lrPrY4jM4ihEVtbHIe6AznZN0-qWZ0MspQs"
@@ -408,5 +408,45 @@
     "phoneNumber": null,
     "createdAt": "2025-10-10T09:24:54.446Z",
     "lastLogin": "2025-10-10T09:51:12.625Z"
+  },
+  {
+    "id": "1760383748941",
+    "email": "testuser12345@example.com",
+    "password": "$2b$10$KEZ6zLHmyd8aRyYdJi2deO7rgsxnkx1xv06OiXk885OCUTVVk/kFK",
+    "firstName": "Test",
+    "lastName": "User",
+    "phoneNumber": null,
+    "createdAt": "2025-10-13T19:29:08.941Z",
+    "lastLogin": null
+  },
+  {
+    "id": "1760383753931",
+    "email": "existingemail@example.com",
+    "password": "$2b$10$E2h219CAvB2PMnnqJ02Hv.FOEqyrmvMzwSk0wbjjAn90YR9sVQtM6",
+    "firstName": "Test",
+    "lastName": "User",
+    "phoneNumber": null,
+    "createdAt": "2025-10-13T19:29:13.932Z",
+    "lastLogin": null
+  },
+  {
+    "id": "1760383915013",
+    "email": "newuser@example.com",
+    "password": "$2b$10$h64Jr1/3fCqClbZFhHNJSOIvCbuqDt3HGAKHP9NKraefQbFKJmD.C",
+    "firstName": "Test",
+    "lastName": "User",
+    "phoneNumber": null,
+    "createdAt": "2025-10-13T19:31:55.013Z",
+    "lastLogin": null
+  },
+  {
+    "id": "1760383946916",
+    "email": "userc@example.com",
+    "password": "$2b$10$RQxh8xi2PKW0ftj1LhTlkOWXtgnEpUfc6ci0B3scPDK2uXP9cbbdG",
+    "firstName": "User",
+    "lastName": "C",
+    "phoneNumber": null,
+    "createdAt": "2025-10-13T19:32:26.916Z",
+    "lastLogin": null
   }
 ]

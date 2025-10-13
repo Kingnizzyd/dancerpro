@@ -1,7 +1,9 @@
-// WebSocket service for real-time communication
+// WebSocket service for real-time communication using Socket.IO
+import { io } from 'socket.io-client';
+
 class WebSocketService {
   constructor() {
-    this.ws = null;
+    this.socket = null;
     this.url = null;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
@@ -11,7 +13,7 @@ class WebSocketService {
   }
 
   connect(url) {
-    if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) {
+    if (this.isConnecting || (this.socket && this.socket.connected)) {
       return;
     }
 
@@ -19,43 +21,51 @@ class WebSocketService {
     this.isConnecting = true;
 
     try {
-      this.ws = new WebSocket(url);
+      this.socket = io(url, {
+        transports: ['websocket', 'polling'],
+        autoConnect: true
+      });
       
-      this.ws.onopen = () => {
-        console.log('WebSocket connected');
+      this.socket.on('connect', () => {
+        console.log('Socket.IO connected');
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.emit('connected');
-      };
+      });
 
-      this.ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          this.emit('message', data);
-          
-          // Emit specific event types
-          if (data.type) {
-            this.emit(data.type, data);
-          }
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+      this.socket.on('message', (data) => {
+        this.emit('message', data);
+        
+        // Emit specific event types
+        if (data.type) {
+          this.emit(data.type, data);
         }
-      };
+      });
 
-      this.ws.onclose = () => {
-        console.log('WebSocket disconnected');
+      this.socket.on('disconnect', () => {
+        console.log('Socket.IO disconnected');
         this.isConnecting = false;
         this.emit('disconnected');
         this.attemptReconnect();
-      };
+      });
 
-      this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+      this.socket.on('connect_error', (error) => {
+        console.error('Socket.IO connection error:', error);
         this.isConnecting = false;
         this.emit('error', error);
-      };
+      });
+
+      // Listen for specific events from the server
+      this.socket.on('message_status_update', (data) => {
+        this.emit('message_status_update', data);
+      });
+
+      this.socket.on('new_message', (data) => {
+        this.emit('new_message', data);
+      });
+
     } catch (error) {
-      console.error('Failed to create WebSocket connection:', error);
+      console.error('Failed to create Socket.IO connection:', error);
       this.isConnecting = false;
       this.emit('error', error);
     }
@@ -63,19 +73,19 @@ class WebSocketService {
 
   disconnect() {
     this.reconnectAttempts = this.maxReconnectAttempts; // Prevent reconnection
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
     }
   }
 
   send(data) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (this.socket && this.socket.connected) {
       try {
-        this.ws.send(JSON.stringify(data));
+        this.socket.emit('message', data);
         return true;
       } catch (error) {
-        console.error('Error sending WebSocket message:', error);
+        console.error('Error sending Socket.IO message:', error);
         return false;
       }
     }
@@ -116,18 +126,18 @@ class WebSocketService {
         try {
           callback(data);
         } catch (error) {
-          console.error(`Error in WebSocket event listener for ${event}:`, error);
+          console.error(`Error in Socket.IO event listener for ${event}:`, error);
         }
       });
     }
   }
 
   isConnected() {
-    return this.ws && this.ws.readyState === WebSocket.OPEN;
+    return this.socket && this.socket.connected;
   }
 
   getReadyState() {
-    return this.ws ? this.ws.readyState : WebSocket.CLOSED;
+    return this.socket ? (this.socket.connected ? 1 : 0) : 3; // WebSocket-like states
   }
 }
 

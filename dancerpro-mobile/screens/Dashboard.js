@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { lastNDaysShifts, sumEarnings, topVenueByEarnings, clients as sampleClients } from '../data/sampleData';
 import { openDb, getRecentShifts, getTopVenue, getKpiSnapshot, getAllClients, getAllDataSnapshot, importAllDataSnapshot, getTopEarningOutfits, getAllOutfitsWithEarnings } from '../lib/db';
-import { Card, Button, Segmented } from '../components/UI';
+import { GradientCard, GradientButton, ModernInput } from '../components/UI';
 import { formatCurrency } from '../utils/formatters';
 import { Colors } from '../constants/Colors';
 import { BACKEND_URL } from '../lib/config';
 import { fetchCloudSnapshot } from '../lib/api';
 import WebSocketService from '../services/WebSocketService';
 import { useAuth } from '../context/AuthContext';
+
+const { width } = Dimensions.get('window');
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -146,7 +149,8 @@ export default function Dashboard() {
     let mounted = true;
     (async () => {
       try {
-        await WebSocketService.connect();
+        // Connect to Socket.IO server using HTTP URL
+        await WebSocketService.connect(BACKEND_URL);
       } catch (e) {
         console.warn('Dashboard socket connect failed', e);
       }
@@ -308,217 +312,307 @@ export default function Dashboard() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.heading}>Dashboard</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity 
-            style={styles.viewAllButton} 
-            onPress={handleSyncCloud}
-            accessibilityRole="button"
-            accessibilityLabel="Sync cloud data"
+    <LinearGradient
+      colors={[Colors.background, Colors.backgroundSecondary, Colors.surfaceAccent]}
+      style={styles.container}
+    >
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <LinearGradient
+            colors={[Colors.gradientPrimary, Colors.gradientSecondary]}
+            style={styles.headerGradient}
           >
-            <Text style={styles.viewAllText}>Sync Cloud</Text>
-          </TouchableOpacity>
-          <View style={styles.healthBadge} accessibilityLabel={`Backend ${backendHealth}`}>
-            <View
-              style={[
-                styles.healthDot,
-                backendHealth === 'healthy' ? { backgroundColor: Colors.success } :
-                backendHealth === 'degraded' ? { backgroundColor: Colors.warning } :
-                backendHealth === 'down' ? { backgroundColor: Colors.error } :
-                { backgroundColor: Colors.status }
-              ]}
-            />
-            <Text style={styles.healthText}>
-              {healthChecking ? 'Checking…' : `Backend: ${backendHealth}`}
-            </Text>
-            <TouchableOpacity
-              onPress={checkHealth}
-              accessibilityRole="button"
-              accessibilityLabel="Check backend health"
-            >
-              <Ionicons name="refresh" size={16} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            style={styles.refreshButton}
-            onPress={refreshDashboardData}
-            accessibilityRole="button"
-            accessibilityLabel="Refresh dashboard"
-          >
-            <Ionicons name="refresh" size={20} color={Colors.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-      <Text style={styles.lastUpdatedText}>Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleString() : '—'}</Text>
-      {lastHealthCheck ? (
-        <Text style={styles.lastUpdatedText}>Backend checked: {new Date(lastHealthCheck).toLocaleTimeString()}</Text>
-      ) : null}
-      {user?.email ? (
-        <Text style={styles.signedInText}>Signed in as {user.email}</Text>
-      ) : null}
-      <Segmented
-        options={[
-          { label: '7d', value: 7 },
-          { label: '30d', value: 30 },
-          { label: '90d', value: 90 },
-        ]}
-        value={days}
-        onChange={setDays}
-      />
-      <View style={[styles.cards, { marginTop: 12 }]}>
-        <Card
-          title={`Earnings (${days}d)`}
-          value={formatCurrency(total)}
-          accent="#ff2d90"
-          icon={Platform.OS !== 'web' ? <Ionicons name="cash-outline" size={16} color="#ff2d90" /> : '💰'}
-        />
-        <Card
-          title={`Shifts (${days}d)`}
-          value={`${recentShifts.length}`}
-          accent="#ffd166"
-          icon={Platform.OS !== 'web' ? <Ionicons name="calendar-outline" size={16} color="#ffd166" /> : '📅'}
-        />
-        <Card
-          title="Top Venue"
-          value={top ? `${top.venue.name} (${formatCurrency(top.total)})` : '—'}
-          accent="#06d6a0"
-          icon={Platform.OS !== 'web' ? <Ionicons name="business-outline" size={16} color="#06d6a0" /> : '🏢'}
-        />
-        <Card
-          title="Outfit Earnings"
-          value={formatCurrency(outfitStats.totalEarnings)}
-          accent="#8b5cf6"
-          icon={Platform.OS !== 'web' ? <Ionicons name="shirt-outline" size={16} color="#8b5cf6" /> : '👗'}
-        />
-        <Card
-          title="Profitable Outfits"
-          value={`${outfitStats.profitableOutfits}/${outfitStats.totalOutfits}`}
-          accent="#10b981"
-          icon={Platform.OS !== 'web' ? <Ionicons name="trending-up-outline" size={16} color="#10b981" /> : '📈'}
-        />
-        <Card
-          title="Avg Outfit ROI"
-          value={formatCurrency(outfitStats.avgEarningsPerOutfit)}
-          accent="#f59e0b"
-          icon={Platform.OS !== 'web' ? <Ionicons name="analytics-outline" size={16} color="#f59e0b" /> : '📊'}
-        />
-        <Card
-          title="Transactions"
-          value={`${snapshot?.counts?.transactions || 0}`}
-          accent="#9b5de5"
-          icon={Platform.OS !== 'web' ? <Ionicons name="swap-vertical-outline" size={16} color="#9b5de5" /> : '🔢'}
-        />
-        <Card
-          title="Client-linked Tx"
-          value={`${snapshot?.counts?.clientLinkedTx || 0}`}
-          accent="#9b5de5"
-          icon={Platform.OS !== 'web' ? <Ionicons name="link-outline" size={16} color="#9b5de5" /> : '🔗'}
-        />
-        <Card
-          title="Data"
-          value={Platform.OS === 'web' ? 'Web storage' : 'SQLite'}
-          accent="#4444ff"
-          icon={Platform.OS !== 'web' ? <Ionicons name="cloud-outline" size={16} color="#4444ff" /> : '🗄️'}
-        >
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Button label="Export All" variant="ghost" onPress={handleExportAll} />
-            <Button label="Import All" variant="ghost" onPress={handleImportAll} />
-          </View>
-          {dataMsg ? <Text style={{ color: '#ccc', marginTop: 6 }}>{dataMsg}</Text> : null}
-        </Card>
-        <Card
-          title="Top Client"
-          value={renderTopClient(snapshot, clients)}
-          accent="#06d6a0"
-          icon={Platform.OS !== 'web' ? <Ionicons name="person-outline" size={16} color="#06d6a0" /> : '🧑'}
-        >
-          {snapshot?.topClient ? (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Button label="View Client" variant="ghost" onPress={() => handleViewClient(snapshot.topClient.clientId)} />
-              <Button label="View Money" variant="ghost" onPress={() => handleViewMoney(snapshot.topClient.clientId)} />
-            </View>
-          ) : null}
-        </Card>
-      </View>
-      {/* Top Clients */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Top Clients</Text>
-        <View style={styles.clientList}>
-          {snapshot?.byClient?.slice(0, 5).map((c, i) => (
-            <View key={i} style={styles.clientRow}>
-              <View style={styles.clientInfo}>
-                <Text style={styles.clientName}>{getClientName(clients, c.clientId) || 'Unknown'}</Text>
-                <Text style={styles.clientEarnings}>{formatCurrency(c.net)}</Text>
+            <View style={styles.headerContent}>
+              <View style={styles.headerLeft}>
+                <Ionicons name="analytics" size={32} color={Colors.white} />
+                <View>
+                  <Text style={styles.heading}>Dashboard</Text>
+                  <Text style={styles.subheading}>Your performance overview</Text>
+                </View>
               </View>
-              <View style={styles.clientActions}>
-                <TouchableOpacity onPress={() => handleViewClient(c.clientId)} style={styles.actionButton} accessibilityRole="button" accessibilityLabel={`View client ${getClientName(clients, c.clientId) || 'details'}`}>
-                  <Text style={styles.actionText}>View</Text>
+              <View style={styles.headerActions}>
+                <TouchableOpacity 
+                  style={styles.syncButton} 
+                  onPress={handleSyncCloud}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sync cloud data"
+                >
+                  <Ionicons name="cloud-download" size={20} color={Colors.white} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleViewMoney(c.clientId)} style={styles.actionButton} accessibilityRole="button" accessibilityLabel={`View money for ${getClientName(clients, c.clientId) || 'client'}`}>
-                  <Text style={styles.actionText}>Money</Text>
+                <TouchableOpacity
+                  style={styles.refreshButton}
+                  onPress={refreshDashboardData}
+                  accessibilityRole="button"
+                  accessibilityLabel="Refresh dashboard"
+                >
+                  <Ionicons name="refresh" size={20} color={Colors.white} />
                 </TouchableOpacity>
               </View>
             </View>
-          ))}
+          </LinearGradient>
         </View>
-      </View>
 
-      {/* Top Earning Outfits */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Top Earning Outfits</Text>
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('Analytics')} 
-            style={styles.viewAllButton}
-            accessibilityRole="button"
-            accessibilityLabel="View analytics"
-          >
-            <Text style={styles.viewAllText}>View Analytics</Text>
-          </TouchableOpacity>
+        {/* Status Bar */}
+        <GradientCard variant="minimal" style={styles.statusCard}>
+          <View style={styles.statusRow}>
+            <View style={styles.statusItem}>
+              <View style={[styles.statusDot, { 
+                backgroundColor: backendHealth === 'healthy' ? Colors.success : 
+                               backendHealth === 'degraded' ? Colors.warning : 
+                               backendHealth === 'down' ? Colors.error : Colors.textMuted 
+              }]} />
+              <Text style={styles.statusText}>
+                {healthChecking ? 'Checking…' : `Backend: ${backendHealth}`}
+              </Text>
+            </View>
+            {user?.email && (
+              <Text style={styles.userText}>Signed in as {user.email}</Text>
+            )}
+            <Text style={styles.lastUpdatedText}>
+              {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '—'}
+            </Text>
+          </View>
+        </GradientCard>
+
+        {/* Time Range Selector */}
+        <GradientCard variant="glow" style={styles.timeRangeCard}>
+          <Text style={styles.cardTitle}>Time Range</Text>
+          <View style={styles.timeRangeButtons}>
+            {[
+              { label: '7 Days', value: 7 },
+              { label: '30 Days', value: 30 },
+              { label: '90 Days', value: 90 },
+            ].map((option) => (
+              <GradientButton
+                key={option.value}
+                title={option.label}
+                variant={days === option.value ? 'primary' : 'secondary'}
+                size="small"
+                onPress={() => setDays(option.value)}
+                style={styles.timeRangeButton}
+              />
+            ))}
+          </View>
+        </GradientCard>
+
+        {/* KPI Cards Grid */}
+        <View style={styles.kpiGrid}>
+          <GradientCard variant="accent" style={styles.kpiCard}>
+            <View style={styles.kpiContent}>
+              <View style={styles.kpiIcon}>
+                <Ionicons name="cash" size={24} color={Colors.accent} />
+              </View>
+              <View style={styles.kpiText}>
+                <Text style={styles.kpiValue}>{formatCurrency(total)}</Text>
+                <Text style={styles.kpiLabel}>Earnings ({days}d)</Text>
+              </View>
+            </View>
+          </GradientCard>
+
+          <GradientCard variant="glow" style={styles.kpiCard}>
+            <View style={styles.kpiContent}>
+              <View style={styles.kpiIcon}>
+                <Ionicons name="calendar" size={24} color={Colors.secondary} />
+              </View>
+              <View style={styles.kpiText}>
+                <Text style={styles.kpiValue}>{recentShifts.length}</Text>
+                <Text style={styles.kpiLabel}>Shifts ({days}d)</Text>
+              </View>
+            </View>
+          </GradientCard>
+
+          <GradientCard variant="default" style={styles.kpiCard}>
+            <View style={styles.kpiContent}>
+              <View style={styles.kpiIcon}>
+                <Ionicons name="business" size={24} color={Colors.gradientPrimary} />
+              </View>
+              <View style={styles.kpiText}>
+                <Text style={styles.kpiValue} numberOfLines={1}>
+                  {top ? top.venue.name : '—'}
+                </Text>
+                <Text style={styles.kpiLabel}>Top Venue</Text>
+                {top && <Text style={styles.kpiSubtext}>{formatCurrency(top.total)}</Text>}
+              </View>
+            </View>
+          </GradientCard>
+
+          <GradientCard variant="accent" style={styles.kpiCard}>
+            <View style={styles.kpiContent}>
+              <View style={styles.kpiIcon}>
+                <Ionicons name="shirt" size={24} color={Colors.accentSecondary} />
+              </View>
+              <View style={styles.kpiText}>
+                <Text style={styles.kpiValue}>{formatCurrency(outfitStats.totalEarnings)}</Text>
+                <Text style={styles.kpiLabel}>Outfit Earnings</Text>
+              </View>
+            </View>
+          </GradientCard>
+
+          <GradientCard variant="glow" style={styles.kpiCard}>
+            <View style={styles.kpiContent}>
+              <View style={styles.kpiIcon}>
+                <Ionicons name="trending-up" size={24} color={Colors.success} />
+              </View>
+              <View style={styles.kpiText}>
+                <Text style={styles.kpiValue}>
+                  {outfitStats.profitableOutfits}/{outfitStats.totalOutfits}
+                </Text>
+                <Text style={styles.kpiLabel}>Profitable Outfits</Text>
+              </View>
+            </View>
+          </GradientCard>
+
+          <GradientCard variant="default" style={styles.kpiCard}>
+            <View style={styles.kpiContent}>
+              <View style={styles.kpiIcon}>
+                <Ionicons name="analytics" size={24} color={Colors.warning} />
+              </View>
+              <View style={styles.kpiText}>
+                <Text style={styles.kpiValue}>{formatCurrency(outfitStats.avgEarningsPerOutfit)}</Text>
+                <Text style={styles.kpiLabel}>Avg Outfit ROI</Text>
+              </View>
+            </View>
+          </GradientCard>
         </View>
-        <View style={styles.outfitList}>
-          {topOutfits.map((outfit, i) => (
-            <View key={outfit.id} style={styles.outfitRow}>
-              <View style={styles.outfitInfo}>
-                <Text style={styles.outfitName}>{outfit.name}</Text>
-                <View style={styles.outfitMetrics}>
-                  <Text style={styles.outfitIncome}>+{formatCurrency(outfit.income || 0)}</Text>
-                <Text style={styles.outfitExpense}>-{formatCurrency(outfit.expense || 0)}</Text>
-                <Text style={[styles.outfitNet, { color: (outfit.net || 0) >= 0 ? '#10b981' : '#ef4444' }]}>
-                  {formatCurrency(outfit.net || 0)}
+
+        {/* Top Clients Section */}
+        <GradientCard variant="glow" style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Top Clients</Text>
+            <GradientButton
+              title="View All"
+              variant="secondary"
+              size="small"
+              onPress={() => navigation.navigate('Clients')}
+            />
+          </View>
+          <View style={styles.clientList}>
+            {snapshot?.byClient?.slice(0, 5).map((c, i) => (
+              <View key={i} style={styles.clientRow}>
+                <View style={styles.clientRank}>
+                  <Text style={styles.rankNumber}>#{i + 1}</Text>
+                </View>
+                <View style={styles.clientInfo}>
+                  <Text style={styles.clientName}>{getClientName(clients, c.clientId) || 'Unknown'}</Text>
+                  <Text style={styles.clientEarnings}>{formatCurrency(c.net)}</Text>
+                </View>
+                <View style={styles.clientActions}>
+                  <TouchableOpacity 
+                    onPress={() => handleViewClient(c.clientId)} 
+                    style={styles.actionButton}
+                  >
+                    <Ionicons name="person" size={16} color={Colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => handleViewMoney(c.clientId)} 
+                    style={styles.actionButton}
+                  >
+                    <Ionicons name="cash" size={16} color={Colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+            {(!snapshot?.byClient || snapshot.byClient.length === 0) && (
+              <View style={styles.emptyState}>
+                <Ionicons name="people-outline" size={48} color={Colors.textMuted} />
+                <Text style={styles.emptyText}>No client data yet</Text>
+                <Text style={styles.emptySubtext}>Start adding clients to see performance</Text>
+              </View>
+            )}
+          </View>
+        </GradientCard>
+
+        {/* Top Earning Outfits Section */}
+        <GradientCard variant="accent" style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Top Earning Outfits</Text>
+            <GradientButton
+              title="Analytics"
+              variant="secondary"
+              size="small"
+              onPress={() => navigation.navigate('Analytics')}
+            />
+          </View>
+          <View style={styles.outfitList}>
+            {topOutfits.map((outfit, i) => (
+              <View key={outfit.id} style={styles.outfitRow}>
+                <View style={styles.outfitRank}>
+                  <LinearGradient
+                    colors={[Colors.gradientPrimary, Colors.gradientSecondary]}
+                    style={styles.rankGradient}
+                  >
+                    <Text style={styles.rankNumber}>#{i + 1}</Text>
+                  </LinearGradient>
+                </View>
+                <View style={styles.outfitInfo}>
+                  <Text style={styles.outfitName}>{outfit.name}</Text>
+                  <View style={styles.outfitMetrics}>
+                    <Text style={styles.outfitIncome}>+{formatCurrency(outfit.income || 0)}</Text>
+                    <Text style={styles.outfitExpense}>-{formatCurrency(outfit.expense || 0)}</Text>
+                    <Text style={[styles.outfitNet, { 
+                      color: (outfit.net || 0) >= 0 ? Colors.success : Colors.error 
+                    }]}>
+                      {formatCurrency(outfit.net || 0)}
+                    </Text>
+                  </View>
+                  <Text style={styles.outfitWears}>
+                    {outfit.wearCount || 0} wears • {outfit.transactionCount || 0} transactions
                   </Text>
                 </View>
-                <Text style={styles.outfitWears}>
-                  {outfit.wearCount || 0} wears • {outfit.transactionCount || 0} transactions
-                </Text>
               </View>
-              <View style={styles.outfitRank}>
-                <Text style={styles.rankNumber}>#{i + 1}</Text>
+            ))}
+            {topOutfits.length === 0 && (
+              <View style={styles.emptyState}>
+                <Ionicons name="shirt-outline" size={48} color={Colors.textMuted} />
+                <Text style={styles.emptyText}>No outfit earnings data yet</Text>
+                <Text style={styles.emptySubtext}>Start linking transactions to outfits to see performance</Text>
               </View>
-            </View>
-          ))}
-          {topOutfits.length === 0 && (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No outfit earnings data yet</Text>
-              <Text style={styles.emptySubtext}>Start linking transactions to outfits to see performance</Text>
-            </View>
-          )}
-        </View>
-      </View>
-      <Text style={styles.note}>
-        {Platform.OS === 'web' ? 'Using web localStorage fallback.' : 'Using on-device SQLite database.'}
-      </Text>
-      {refreshing && (
-        <View style={styles.refreshOverlay} pointerEvents="none">
-          <View style={styles.refreshOverlayInner}>
-            <Ionicons name="refresh" size={24} color={Colors.text} />
-            <Text style={styles.refreshOverlayText}>Refreshing...</Text>
+            )}
           </View>
-        </View>
-      )}
-    </View>
+        </GradientCard>
+
+        {/* Data Management Section */}
+        <GradientCard variant="minimal" style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Data Management</Text>
+          <View style={styles.dataActions}>
+            <GradientButton
+              title="Export All"
+              variant="secondary"
+              size="small"
+              onPress={handleExportAll}
+              style={styles.dataButton}
+            />
+            <GradientButton
+              title="Import All"
+              variant="secondary"
+              size="small"
+              onPress={handleImportAll}
+              style={styles.dataButton}
+            />
+          </View>
+          {dataMsg ? (
+            <Text style={styles.dataMessage}>{dataMsg}</Text>
+          ) : null}
+          <Text style={styles.dataNote}>
+            {Platform.OS === 'web' ? 'Using web localStorage fallback.' : 'Using on-device SQLite database.'}
+          </Text>
+        </GradientCard>
+
+        {/* Loading Overlay */}
+        {refreshing && (
+          <View style={styles.refreshOverlay}>
+            <GradientCard variant="glow" style={styles.refreshCard}>
+              <Ionicons name="refresh" size={24} color={Colors.primary} />
+              <Text style={styles.refreshText}>Refreshing...</Text>
+            </GradientCard>
+          </View>
+        )}
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
@@ -539,63 +633,311 @@ function renderTopClient(snapshot, clients) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-    padding: 16,
   },
-  heading: {
-    color: Colors.text,
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 12,
+  scrollContainer: {
+    paddingBottom: Colors.spacing.xl,
   },
-  headerRow: {
+  header: {
+    marginBottom: Colors.spacing.lg,
+  },
+  headerGradient: {
+    paddingTop: 50,
+    paddingHorizontal: Colors.spacing.lg,
+    paddingBottom: Colors.spacing.lg,
+    borderBottomLeftRadius: Colors.borderRadius.xl,
+    borderBottomRightRadius: Colors.borderRadius.xl,
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  refreshButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: Colors.buttonGhost,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Colors.spacing.md,
   },
-  lastUpdatedText: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    marginBottom: 8,
+  heading: {
+    color: Colors.white,
+    fontSize: Colors.typography.fontSize.xl,
+    fontWeight: Colors.typography.fontWeight.bold,
+    marginBottom: 4,
+  },
+  subheading: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.medium,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Colors.spacing.sm,
   },
-  healthBadge: {
+  syncButton: {
+    padding: Colors.spacing.sm,
+    borderRadius: Colors.borderRadius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  refreshButton: {
+    padding: Colors.spacing.sm,
+    borderRadius: Colors.borderRadius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  statusCard: {
+    marginHorizontal: Colors.spacing.lg,
+    marginBottom: Colors.spacing.md,
+  },
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: Colors.surface,
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: Colors.spacing.sm,
   },
-  healthDot: {
+  statusItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Colors.spacing.xs,
+  },
+  statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
-  healthText: {
+  statusText: {
     color: Colors.textSecondary,
-    fontSize: 12,
+    fontSize: Colors.typography.fontSize.xs,
+    fontWeight: Colors.typography.fontWeight.medium,
   },
-  cards: {
+  userText: {
+    color: Colors.textAccent,
+    fontSize: Colors.typography.fontSize.xs,
+    fontWeight: Colors.typography.fontWeight.medium,
+  },
+  lastUpdatedText: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.xs,
+  },
+  timeRangeCard: {
+    marginHorizontal: Colors.spacing.lg,
+    marginBottom: Colors.spacing.lg,
+  },
+  cardTitle: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.md,
+    fontWeight: Colors.typography.fontWeight.semibold,
+    marginBottom: Colors.spacing.md,
+  },
+  timeRangeButtons: {
+    flexDirection: 'row',
+    gap: Colors.spacing.sm,
+  },
+  timeRangeButton: {
+    flex: 1,
+  },
+  kpiGrid: {
+    paddingHorizontal: Colors.spacing.lg,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: Colors.spacing.md,
+    marginBottom: Colors.spacing.lg,
   },
-  note: {
+  kpiCard: {
+    width: (width - Colors.spacing.lg * 2 - Colors.spacing.md) / 2,
+    minHeight: 120,
+  },
+  kpiContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Colors.spacing.md,
+  },
+  kpiIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: Colors.borderRadius.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kpiText: {
+    flex: 1,
+  },
+  kpiValue: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.lg,
+    fontWeight: Colors.typography.fontWeight.bold,
+    marginBottom: 4,
+  },
+  kpiLabel: {
     color: Colors.textSecondary,
-    marginTop: 16,
-    fontSize: 12,
+    fontSize: Colors.typography.fontSize.xs,
+    fontWeight: Colors.typography.fontWeight.medium,
+  },
+  kpiSubtext: {
+    color: Colors.textAccent,
+    fontSize: Colors.typography.fontSize.xs,
+    fontWeight: Colors.typography.fontWeight.medium,
+    marginTop: 2,
+  },
+  sectionCard: {
+    marginHorizontal: Colors.spacing.lg,
+    marginBottom: Colors.spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Colors.spacing.md,
+  },
+  sectionTitle: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.lg,
+    fontWeight: Colors.typography.fontWeight.bold,
+  },
+  clientList: {
+    gap: Colors.spacing.sm,
+  },
+  clientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Colors.spacing.md,
+    paddingVertical: Colors.spacing.sm,
+    paddingHorizontal: Colors.spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: Colors.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  clientRank: {
+    width: 32,
+    height: 32,
+    borderRadius: Colors.borderRadius.full,
+    backgroundColor: Colors.surfaceSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankNumber: {
+    color: Colors.textAccent,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.bold,
+  },
+  clientInfo: {
+    flex: 1,
+  },
+  clientName: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.md,
+    fontWeight: Colors.typography.fontWeight.semibold,
+    marginBottom: 2,
+  },
+  clientEarnings: {
+    color: Colors.success,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.semibold,
+  },
+  clientActions: {
+    flexDirection: 'row',
+    gap: Colors.spacing.xs,
+  },
+  actionButton: {
+    padding: Colors.spacing.sm,
+    borderRadius: Colors.borderRadius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  outfitList: {
+    gap: Colors.spacing.md,
+  },
+  outfitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Colors.spacing.md,
+    paddingVertical: Colors.spacing.md,
+    paddingHorizontal: Colors.spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: Colors.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  outfitRank: {
+    width: 40,
+    height: 40,
+  },
+  rankGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: Colors.borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  outfitInfo: {
+    flex: 1,
+  },
+  outfitName: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.md,
+    fontWeight: Colors.typography.fontWeight.semibold,
+    marginBottom: Colors.spacing.xs,
+  },
+  outfitMetrics: {
+    flexDirection: 'row',
+    gap: Colors.spacing.md,
+    marginBottom: Colors.spacing.xs,
+  },
+  outfitIncome: {
+    color: Colors.success,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.semibold,
+  },
+  outfitExpense: {
+    color: Colors.error,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.semibold,
+  },
+  outfitNet: {
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.bold,
+  },
+  outfitWears: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.xs,
+    fontWeight: Colors.typography.fontWeight.medium,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: Colors.spacing.xl,
+    gap: Colors.spacing.sm,
+  },
+  emptyText: {
+    color: Colors.textSecondary,
+    fontSize: Colors.typography.fontSize.md,
+    fontWeight: Colors.typography.fontWeight.semibold,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.sm,
+    textAlign: 'center',
+    maxWidth: 250,
+  },
+  dataActions: {
+    flexDirection: 'row',
+    gap: Colors.spacing.sm,
+    marginBottom: Colors.spacing.md,
+  },
+  dataButton: {
+    flex: 1,
+  },
+  dataMessage: {
+    color: Colors.textAccent,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.medium,
+    marginBottom: Colors.spacing.sm,
+    textAlign: 'center',
+  },
+  dataNote: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.xs,
+    textAlign: 'center',
   },
   refreshOverlay: {
     position: 'absolute',
@@ -603,163 +945,21 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1000,
   },
-  refreshOverlayInner: {
+  refreshCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: Colors.surface,
+    gap: Colors.spacing.md,
+    paddingHorizontal: Colors.spacing.lg,
+    paddingVertical: Colors.spacing.md,
   },
-  refreshOverlayText: {
+  refreshText: {
     color: Colors.text,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  section: {
-    marginTop: 16,
-  },
-  sectionTitle: {
-    color: '#f5f5f5',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  clientList: {
-    gap: 8,
-  },
-  clientRow: {
-    backgroundColor: '#121212',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 10,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  clientInfo: {
-    flex: 1,
-  },
-  clientName: {
-    color: '#f5f5f5',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  clientEarnings: {
-    color: '#10b981',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  clientActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButton: {
-    backgroundColor: '#333',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  actionText: {
-    color: '#f5f5f5',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  outfitList: {
-    gap: 12,
-  },
-  outfitRow: {
-    backgroundColor: '#121212',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 10,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  outfitInfo: {
-    flex: 1,
-  },
-  outfitName: {
-    color: '#f5f5f5',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  outfitMetrics: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 4,
-  },
-  outfitIncome: {
-    color: '#10b981',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  outfitExpense: {
-    color: '#ef4444',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  outfitNet: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  outfitWears: {
-    color: '#999',
-    fontSize: 12,
-  },
-  outfitRank: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 40,
-    height: 40,
-    backgroundColor: '#333',
-    borderRadius: 20,
-  },
-  rankNumber: {
-    color: '#ffd166',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 24,
-  },
-  emptyText: {
-    color: '#999',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  emptySubtext: {
-    color: '#666',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  viewAllButton: {
-    backgroundColor: '#333',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  viewAllText: {
-    color: '#06d6a0',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: Colors.typography.fontSize.md,
+    fontWeight: Colors.typography.fontWeight.semibold,
   },
 });

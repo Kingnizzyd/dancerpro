@@ -114,7 +114,7 @@ export default function App() {
             options={{ title: 'Reset Password' }}
           />
           <Stack.Screen
-          name="Dashboard"
+          name="Main"
           component={MainTabs}
           options={{ headerShown: false }}
           />

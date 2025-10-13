@@ -140,7 +140,7 @@ const SignupScreen = ({ navigation }) => {
         password_confirmation: formData.password,
       };
 
-      const requestUrl = `${BACKEND_URL}/auth-register`;
+      const requestUrl = `${BACKEND_URL}/api/auth/register`;
       console.log('🌐 Making request to:', requestUrl);
       console.log('📤 Signup data:', { ...signupData, password: '[HIDDEN]', passwordConfirmation: '[HIDDEN]' });
 
@@ -188,7 +188,7 @@ const SignupScreen = ({ navigation }) => {
         }
         await secureSet('userData', JSON.stringify(data.user));
         setToast({ visible: true, message: 'Account created successfully!', type: 'success' });
-        navigation.navigate('Dashboard');
+        navigation.navigate('Main');
       } else {
         console.log('❌ Signup failed:', data.message || data.error);
         setToast({ visible: true, message: data.message || data.error || 'Registration failed. Please try again.', type: 'error' });

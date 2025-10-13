@@ -20,13 +20,26 @@ export async function fetchCloudSnapshot() {
       throw new Error('No authentication token found');
     }
 
-    const response = await fetch(`${BACKEND_URL}/sync-import`, {
+    const response = await fetch(`${BACKEND_URL}/api/sync/import`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
     });
+
+    if (response.status === 404) {
+      // No cloud snapshot exists yet - this is normal for new users
+      console.log('No cloud snapshot found - user may not have saved data yet');
+      return {
+        success: true,
+        snapshot: {},
+        metadata: {
+          updatedAt: null,
+          version: 0
+        }
+      };
+    }
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);

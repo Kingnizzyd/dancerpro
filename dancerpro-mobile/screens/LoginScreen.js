@@ -2,23 +2,25 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { secureSet, secureGet } from '../lib/secureStorage';
 import { BACKEND_URL } from '../lib/config';
-import { showErrorAlert, showSuccessAlert, handleError, validateForm, ValidationErrors } from '../utils/errorHandler';
-import { Colors, Spacing, BorderRadius, Typography } from '../constants/Colors';
-import { Toast } from '../components/UI';
+import { showErrorAlert, validateForm } from '../utils/errorHandler';
+import { Colors } from '../constants/Colors';
+import { Toast, GradientButton, GradientCard, ModernInput } from '../components/UI';
 import { useAuth } from '../context/AuthContext';
-import { getSecurityState, authenticateWithBiometrics, authenticateWithPIN } from '../lib/security';
-import { createPasskey, loginWithPasskey, loginWithPasskeyDiscoverable } from '../lib/webauthn';
+import { getSecurityState, authenticateWithPIN } from '../lib/security';
+import { loginWithPasskeyDiscoverable } from '../lib/webauthn';
+
+const { width, height } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -29,10 +31,12 @@ const LoginScreen = ({ navigation }) => {
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
   const [securityStatus, setSecurityStatus] = useState({ biometricAvailable: false, biometricEnabled: false, pinEnabled: false });
   const [hasStoredSession, setHasStoredSession] = useState(false);
-  const [pinQuick, setPinQuick] = useState('');
   const [quickLoading, setQuickLoading] = useState(false);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
-  const [phase, setPhase] = useState('email');
+  const [step, setStep] = useState('email');
+  const [quickPin, setQuickPin] = useState('');
+  const [hasQuickPin, setHasQuickPin] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
   const { checkAuthStatus } = useAuth();
 
   useEffect(() => {
@@ -43,8 +47,26 @@ const LoginScreen = ({ navigation }) => {
         const token = await secureGet('authToken');
         const user = await secureGet('userData');
         setHasStoredSession(!!token && !!user);
+        setHasSession(!!token && !!user);
+        setHasQuickPin(status.pinEnabled);
       } catch {}
     })();
+  }, []);
+
+  // Dev-only auto bypass on web to speed up UI preview
+  useEffect(() => {
+    if (Platform.OS === 'web' && process.env.NODE_ENV !== 'production') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const autoParam = params.get('auto');
+        const stored = window.localStorage.getItem('__autoBypass');
+        const shouldBypass = autoParam === '1' || stored === '1';
+        if (shouldBypass) {
+          window.localStorage.setItem('__autoBypass', '1');
+          bypassLogin();
+        }
+      } catch {}
+    }
   }, []);
 
   const isFormValid = useMemo(() => {
@@ -83,7 +105,7 @@ const LoginScreen = ({ navigation }) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/auth-login`, {
+      const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,7 +158,7 @@ const LoginScreen = ({ navigation }) => {
         setTimeout(() => {
           navigation.reset({
             index: 0,
-            routes: [{ name: 'Dashboard' }],
+            routes: [{ name: 'Main' }],
           });
         }, 1000);
       } else {
@@ -152,16 +174,6 @@ const LoginScreen = ({ navigation }) => {
     }
   };
 
-  // Handle form submission (for web Enter key support)
-  const handleFormSubmit = (e) => {
-    if (Platform.OS === 'web' && e) {
-      e.preventDefault();
-    }
-    if (isFormValid && !loading) {
-      handleLogin();
-    }
-  };
-
   const handleContinue = () => {
     const e = email.trim();
     const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
@@ -171,15 +183,63 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
     setErrors({});
-    setPhase('password');
+    setStep('password');
+  };
+
+  const handleQuickLogin = async () => {
+    setQuickLoading(true);
+    try {
+      const token = await secureGet('authToken');
+      const userData = await secureGet('userData');
+      
+      if (token && userData) {
+        await checkAuthStatus();
+        navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+      } else {
+        setToast({ visible: true, message: 'Session expired', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ visible: true, message: 'Quick login failed', type: 'error' });
+    } finally {
+      setQuickLoading(false);
+    }
+  };
+
+  const handleQuickPinLogin = async () => {
+    if (!quickPin) return;
+    
+    setQuickLoading(true);
+    try {
+      const success = await authenticateWithPIN(quickPin);
+      if (success) {
+        await checkAuthStatus();
+        navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+      } else {
+        setToast({ visible: true, message: 'Invalid PIN', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ visible: true, message: 'PIN authentication failed', type: 'error' });
+    } finally {
+      setQuickLoading(false);
+    }
   };
 
   const navigateToSignup = () => {
-    navigation.navigate('SignupScreen');
+    navigation.navigate('Signup');
   };
 
   const navigateToPasswordReset = () => {
     navigation.navigate('PasswordReset');
+  };
+
+  // Handle form submission (for web Enter key support)
+  const handleFormSubmit = (e) => {
+    if (Platform.OS === 'web' && e) {
+      e.preventDefault();
+    }
+    if (isFormValid && !loading) {
+      handleLogin();
+    }
   };
 
   // Temporary dev bypass login for testing
@@ -202,7 +262,7 @@ const LoginScreen = ({ navigation }) => {
       // Refresh AuthContext state from storage
       await checkAuthStatus();
 
-      navigation.reset({ index: 0, routes: [{ name: 'Dashboard' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     } catch (e) {
       console.log('[Bypass] Error:', e);
       showErrorAlert('Bypass Failed', 'Unable to set test login.');
@@ -210,363 +270,380 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView
+    <LinearGradient
+      colors={[Colors.gradientPrimary, Colors.gradientSecondary, Colors.gradientTertiary]}
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Ionicons name="person-circle" size={80} color={Colors.primary} />
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header with Logo */}
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <LinearGradient
+                colors={[Colors.accent, Colors.accentSecondary]}
+                style={styles.logoGradient}
+              >
+                <Ionicons name="diamond" size={48} color={Colors.white} />
+              </LinearGradient>
+            </View>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>Sign in to continue your journey</Text>
           </View>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
-        </View>
 
-        {/* Form */}
-        <View style={styles.form}>
-          {/* Quick Login removed for a cleaner experience */}
-
-          {/* Simplified two-step login form */}
-          <View style={styles.loginFormContainer}>
-            {phase === 'email' ? (
-              <>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="mail-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email address"
-                    placeholderTextColor={Colors.inputPlaceholder}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    accessibilityLabel="Email address"
-                    accessibilityHint="Enter your email"
-                    autoComplete="email"
-                    returnKeyType="go"
-                    onSubmitEditing={handleContinue}
+          {/* Quick Login Options */}
+          {hasSession && (
+            <GradientCard variant="accent" padding="medium" style={styles.quickLoginCard}>
+              <Text style={styles.quickTitle}>Quick Access</Text>
+              <GradientButton
+                variant="secondary"
+                size="medium"
+                onPress={handleQuickLogin}
+                loading={quickLoading}
+                style={styles.quickButton}
+              >
+                Continue as Previous User
+              </GradientButton>
+              {hasQuickPin && (
+                <View style={styles.quickPinRow}>
+                  <ModernInput
+                    variant="minimal"
+                    size="medium"
+                    placeholder="Enter PIN"
+                    value={quickPin}
+                    onChangeText={setQuickPin}
+                    secureTextEntry
+                    keyboardType="numeric"
+                    maxLength={6}
+                    style={styles.quickPinInput}
                   />
-                  {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
+                  <GradientButton
+                    variant="accent"
+                    size="medium"
+                    onPress={handleQuickPinLogin}
+                    disabled={!quickPin}
+                    loading={quickLoading}
+                  >
+                    PIN
+                  </GradientButton>
                 </View>
-                <TouchableOpacity
-                  style={[styles.loginButton, (!isEmailValid || loading) && styles.loginButtonDisabled]}
+              )}
+            </GradientCard>
+          )}
+
+          {/* Main Form */}
+          <GradientCard variant="glow" padding="large" style={styles.formCard}>
+            {step === 'email' ? (
+              <View style={styles.emailStep}>
+                <Text style={styles.stepTitle}>Enter your email</Text>
+                <ModernInput
+                  variant="glow"
+                  size="large"
+                  placeholder="Email address"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  leftIcon="mail-outline"
+                  error={errors.email}
+                />
+                <GradientButton
+                  variant="primary"
+                  size="large"
                   onPress={handleContinue}
-                  disabled={loading || !isEmailValid}
-                  accessibilityRole="button"
-                  accessibilityLabel="Continue"
+                  disabled={loading || !email.trim()}
+                  loading={loading}
+                  style={styles.continueButton}
                 >
-                  {loading ? (
-                    <ActivityIndicator color={Colors.buttonPrimaryText} size="small" />
-                  ) : (
-                    <Text style={styles.loginButtonText}>Continue</Text>
-                  )}
-                </TouchableOpacity>
-              </>
+                  Continue
+                </GradientButton>
+              </View>
             ) : (
-              <>
+              <View style={styles.loginStep}>
                 <View style={styles.emailSummary}>
-                  <Text style={styles.emailSummaryText}>{email.trim()}</Text>
-                  <TouchableOpacity onPress={() => setPhase('email')} accessibilityRole="button" accessibilityLabel="Change email">
+                  <Text style={styles.emailSummaryText}>{email}</Text>
+                  <TouchableOpacity onPress={() => setStep('email')}>
                     <Text style={styles.changeLink}>Change</Text>
                   </TouchableOpacity>
                 </View>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="lock-closed-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, styles.passwordInput]}
-                    placeholder="Password"
-                    placeholderTextColor={Colors.inputPlaceholder}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    accessibilityLabel="Password"
-                    accessibilityHint="Enter your password"
-                    autoComplete="current-password"
-                    returnKeyType="go"
-                    onSubmitEditing={handleLogin}
-                  />
-                  <TouchableOpacity
-                    style={styles.eyeIcon}
-                    onPress={() => setShowPassword(!showPassword)}
-                    accessibilityRole="button"
-                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    <Ionicons
-                      name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                      size={20}
-                      color={showPassword ? Colors.primary : Colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                  {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-                </View>
-                <TouchableOpacity
-                  style={[styles.loginButton, (loading || !isFormValid) && styles.loginButtonDisabled]}
+
+                {/* Password Login */}
+                <Text style={styles.stepTitle}>Enter your password</Text>
+                <ModernInput
+                  variant="glow"
+                  size="large"
+                  placeholder="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoComplete="current-password"
+                  leftIcon="lock-closed-outline"
+                  rightIcon={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                  onRightIconPress={() => setShowPassword(!showPassword)}
+                  error={errors.password}
+                />
+                
+                <GradientButton
+                  variant="primary"
+                  size="large"
                   onPress={handleLogin}
                   disabled={loading || !isFormValid}
-                  accessibilityRole="button"
-                  accessibilityLabel="Sign in"
+                  loading={loading}
+                  style={styles.loginButton}
                 >
-                  {loading ? (
-                    <ActivityIndicator color={Colors.buttonPrimaryText} size="small" />
-                  ) : (
-                    <Text style={styles.loginButtonText}>Sign In</Text>
-                  )}
-                </TouchableOpacity>
-              </>
+                  Sign In
+                </GradientButton>
+              </View>
             )}
-          </View>
+          </GradientCard>
 
-        {/* Forgot Password */}
-        <TouchableOpacity style={styles.forgotPassword} onPress={navigateToPasswordReset} accessibilityRole="button" accessibilityLabel="Forgot your password">
-          <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
-        </TouchableOpacity>
+          {/* Forgot Password */}
+          <TouchableOpacity 
+            style={styles.forgotPassword} 
+            onPress={navigateToPasswordReset}
+          >
+            <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
+          </TouchableOpacity>
 
-        {/* Passkey: minimal link for passwordless sign-in (web) */}
-        {Platform.OS === 'web' ? (
-          <View style={{ marginTop: 12, alignItems: 'center' }}>
-            <TouchableOpacity
-              onPress={async () => {
-                setPasskeyLoading(true);
-                try {
-                  const resp = await loginWithPasskeyDiscoverable();
-                  if (resp && resp.token && resp.user) {
-                    await secureSet('authToken', resp.token);
-                    await secureSet('userData', JSON.stringify(resp.user));
-                    await checkAuthStatus();
-                    navigation.reset({ index: 0, routes: [{ name: 'Dashboard' }] });
-                  } else {
-                    const msg = resp?.error || 'Passkey sign-in failed';
-                    setToast({ visible: true, message: msg, type: 'error' });
+          {/* Passkey Login (Web only) */}
+          {Platform.OS === 'web' && (
+            <View style={styles.passkeySection}>
+              <TouchableOpacity
+                onPress={async () => {
+                  setPasskeyLoading(true);
+                  try {
+                    const resp = await loginWithPasskeyDiscoverable();
+                    if (resp && resp.token && resp.user) {
+                      await secureSet('authToken', resp.token);
+                      await secureSet('userData', JSON.stringify(resp.user));
+                      await checkAuthStatus();
+                      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+                    } else {
+                      const msg = resp?.error || 'Passkey sign-in failed';
+                      setToast({ visible: true, message: msg, type: 'error' });
+                    }
+                  } catch (e) {
+                    setToast({ visible: true, message: String(e.message || e), type: 'error' });
+                  } finally {
+                    setPasskeyLoading(false);
                   }
-                } catch (e) {
-                  setToast({ visible: true, message: String(e.message || e), type: 'error' });
-                } finally {
-                  setPasskeyLoading(false);
-                }
-              }}
-              disabled={passkeyLoading}
-              accessibilityRole="button"
-              accessibilityLabel="Use passkey"
-            >
-              <Text style={styles.linkButtonText}>{passkeyLoading ? 'Connecting…' : 'Use passkey'}</Text>
+                }}
+                disabled={passkeyLoading}
+                style={styles.passkeyButton}
+              >
+                <LinearGradient
+                  colors={[Colors.accentSecondary, Colors.accent]}
+                  style={styles.passkeyGradient}
+                >
+                  <Ionicons name="finger-print" size={20} color={Colors.white} />
+                  <Text style={styles.passkeyText}>
+                    {passkeyLoading ? 'Connecting…' : 'Use Passkey'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Don't have an account? </Text>
+            <TouchableOpacity onPress={navigateToSignup}>
+              <LinearGradient
+                colors={[Colors.accent, Colors.accentSecondary]}
+                style={styles.signupGradient}
+              >
+                <Text style={styles.signupLink}>Sign up</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
-        ) : null}
-      </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <TouchableOpacity onPress={navigateToSignup}>
-            <Text style={styles.signupLink}>Sign up</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Dev bypass removed for cleaner login */}
-
-        <Toast
-          visible={toast.visible}
-          message={toast.message}
-          type={toast.type}
-          onAction={() => setToast({ visible: false, message: '', type: 'info' })}
-          actionLabel="Dismiss"
-        />
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <Toast
+            visible={toast.visible}
+            message={toast.message}
+            type={toast.type}
+            onAction={() => setToast({ visible: false, message: '', type: 'info' })}
+            actionLabel="Dismiss"
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingHorizontal: Colors.spacing.xl,
+    paddingVertical: Colors.spacing.xxl,
+    minHeight: height,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: Colors.spacing.xxxl,
   },
   logoContainer: {
-    marginBottom: 24,
+    marginBottom: Colors.spacing.xl,
+  },
+  logoGradient: {
+    width: 96,
+    height: 96,
+    borderRadius: Colors.borderRadius.round,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Colors.shadows.glow,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 8,
+    fontSize: Colors.typography.display,
+    fontWeight: Colors.typography.weights.extrabold,
+    color: Colors.white,
+    marginBottom: Colors.spacing.sm,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   subtitle: {
-    fontSize: 16,
-    color: Colors.textSecondary,
+    fontSize: Colors.typography.lg,
+    fontWeight: Colors.typography.weights.medium,
+    color: Colors.textLight,
+    textAlign: 'center',
+    opacity: 0.9,
+  },
+  quickLoginCard: {
+    marginBottom: Colors.spacing.lg,
+  },
+  quickTitle: {
+    fontSize: Colors.typography.md,
+    fontWeight: Colors.typography.weights.semibold,
+    color: Colors.text,
+    marginBottom: Colors.spacing.md,
     textAlign: 'center',
   },
-  form: {
-    marginBottom: 32,
+  quickButton: {
+    marginBottom: Colors.spacing.md,
   },
-  loginFormContainer: {
-    width: '100%',
+  quickPinRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Colors.spacing.md,
+  },
+  quickPinInput: {
+    flex: 1,
+  },
+  formCard: {
+    marginBottom: Colors.spacing.xl,
+  },
+  emailStep: {
+    alignItems: 'stretch',
+  },
+  loginStep: {
+    alignItems: 'stretch',
+  },
+  stepTitle: {
+    fontSize: Colors.typography.xl,
+    fontWeight: Colors.typography.weights.semibold,
+    color: Colors.text,
+    marginBottom: Colors.spacing.lg,
+    textAlign: 'center',
   },
   emailSummary: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    paddingVertical: Colors.spacing.md,
+    marginBottom: Colors.spacing.lg,
+    paddingHorizontal: Colors.spacing.md,
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: Colors.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   emailSummaryText: {
-    fontSize: 16,
+    fontSize: Colors.typography.md,
+    fontWeight: Colors.typography.weights.medium,
     color: Colors.text,
   },
   changeLink: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    color: Colors.accent,
+    fontSize: Colors.typography.sm,
+    fontWeight: Colors.typography.weights.semibold,
+    paddingHorizontal: Colors.spacing.sm,
+    paddingVertical: Colors.spacing.xs,
   },
-  quickLoginCard: {
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 16,
-  },
-  quickTitle: {
-    fontSize: 16,
-    color: Colors.text,
-    marginBottom: 8,
-    fontWeight: '600',
-  },
-  quickButton: {
-    backgroundColor: Colors.buttonPrimary,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  quickButtonText: {
-    color: Colors.buttonPrimaryText,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  quickPinRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  quickPinInput: {
-    flex: 1,
-  },
-  quickPinButton: {
-    backgroundColor: Colors.buttonSecondary,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  quickPinButtonText: {
-    color: Colors.text,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.inputBackground,
-    borderRadius: 12,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: Colors.inputBorder,
-  },
-  inputIcon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: Colors.inputText,
-    paddingVertical: 16,
-  },
-  passwordInput: {
-    paddingRight: 40,
-  },
-  eyeIcon: {
-    position: 'absolute',
-    right: 16,
-    padding: 4,
+  continueButton: {
+    marginTop: Colors.spacing.lg,
   },
   loginButton: {
-    backgroundColor: Colors.buttonPrimary,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  loginButtonDisabled: {
-    opacity: 0.7,
-  },
-  passkeySection: {
-    display: 'none',
-  },
-  linkButtonText: {
-    color: Colors.primary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  passkeyHint: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 6,
-  },
-  bypassButton: { display: 'none' },
-  bypassButtonText: { display: 'none' },
-  loginButtonText: {
-    color: Colors.buttonPrimaryText,
-    fontSize: 16,
-    fontWeight: '700',
+    marginTop: Colors.spacing.lg,
   },
   forgotPassword: {
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: Colors.spacing.lg,
+    marginBottom: Colors.spacing.xl,
   },
   forgotPasswordText: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '500',
+    color: Colors.accent,
+    fontSize: Colors.typography.md,
+    fontWeight: Colors.typography.weights.medium,
+    textDecorationLine: 'underline',
+  },
+  passkeySection: {
+    alignItems: 'center',
+    marginTop: Colors.spacing.lg,
+    marginBottom: Colors.spacing.xl,
+  },
+  passkeyButton: {
+    borderRadius: Colors.borderRadius.lg,
+    overflow: 'hidden',
+    ...Colors.shadows.medium,
+  },
+  passkeyGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Colors.spacing.md,
+    paddingHorizontal: Colors.spacing.lg,
+    gap: Colors.spacing.sm,
+  },
+  passkeyText: {
+    color: Colors.white,
+    fontSize: Colors.typography.md,
+    fontWeight: Colors.typography.weights.semibold,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: Colors.spacing.xl,
   },
   footerText: {
-    color: Colors.textSecondary,
-    fontSize: 14,
+    color: Colors.textLight,
+    fontSize: Colors.typography.md,
+    fontWeight: Colors.typography.weights.regular,
+  },
+  signupGradient: {
+    paddingHorizontal: Colors.spacing.md,
+    paddingVertical: Colors.spacing.xs,
+    borderRadius: Colors.borderRadius.sm,
   },
   signupLink: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  errorText: {
-    color: Colors.error,
-    fontSize: 12,
-    marginTop: 4,
+    color: Colors.white,
+    fontSize: Colors.typography.md,
+    fontWeight: Colors.typography.weights.semibold,
   },
 });
 

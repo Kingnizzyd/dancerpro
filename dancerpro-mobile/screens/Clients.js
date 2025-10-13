@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Animated, Platform, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Animated, Platform, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { clients as sampleClients, shifts as sampleShifts } from '../data/sampleData';
 import { openDb, getAllClients, insertClient, updateClient, deleteClient, getKpiSnapshot, insertTransaction, getClientPerformance, getClientShifts } from '../lib/db';
-import { Button, Input, Tag, Toast, Segmented } from '../components/UI';
+import { GradientButton, ModernInput, GradientCard, Toast } from '../components/UI';
 import { useNavigation } from '@react-navigation/native';
 import { formatCurrency } from '../utils/formatters';
 import { Colors } from '../constants/Colors';
+
+const { width } = Dimensions.get('window');
 
 export default function Clients({ route }) {
   const navigation = useNavigation();
@@ -304,14 +307,41 @@ export default function Clients({ route }) {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.heading}>Clients & Messaging</Text>
-      <View style={{ marginBottom: 12 }}>
-        <Button label="Add Client" variant="primary" onPress={() => { resetForm(); setAddOpen(true); }} />
+    <LinearGradient
+      colors={[Colors.background, Colors.backgroundSecondary, Colors.surfaceAccent]}
+      style={styles.container}
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <LinearGradient
+          colors={[Colors.gradientPrimary, Colors.gradientSecondary]}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <Ionicons name="people" size={32} color={Colors.white} />
+              <View>
+                <Text style={styles.heading}>Clients & Messaging</Text>
+                <Text style={styles.subheading}>Manage your client relationships</Text>
+              </View>
+            </View>
+            <GradientButton
+              title="Add Client"
+              variant="accent"
+              size="small"
+              onPress={() => { resetForm(); setAddOpen(true); }}
+              style={styles.addButton}
+            />
+          </View>
+        </LinearGradient>
       </View>
+
+      {/* Client List */}
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         renderItem={({ item }) => (
           <ClientRow 
@@ -326,137 +356,283 @@ export default function Clients({ route }) {
             onSetAnalyticsFilter={() => setPreferredClientFilter(item.id)}
           />
         )}
+        ListEmptyComponent={() => (
+          <GradientCard variant="minimal" style={styles.emptyCard}>
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={64} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No Clients Yet</Text>
+              <Text style={styles.emptySubtitle}>Add your first client to start tracking relationships and earnings</Text>
+              <GradientButton
+                title="Add Your First Client"
+                variant="primary"
+                onPress={() => { resetForm(); setAddOpen(true); }}
+                style={styles.emptyButton}
+              />
+            </View>
+          </GradientCard>
+        )}
       />
+
+      {/* Add/Edit Modal */}
       {addOpen && (
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <GradientCard variant="glow" style={styles.modalSheet}>
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalTitle}>{editId ? 'Edit Client' : 'Add Client'}</Text>
-              <Input placeholder="Name" value={name} onChangeText={setName} />
-              <Input placeholder="Contact" value={contact} onChangeText={setContact} />
-              <Input placeholder="Value score e.g. 8" value={valueScore} onChangeText={setValueScore} keyboardType="numeric" />
-              <Input placeholder="Tags comma-separated" value={tagsStr} onChangeText={setTagsStr} />
-              <Input placeholder="Notes" value={notes} onChangeText={setNotes} />
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{editId ? 'Edit Client' : 'Add Client'}</Text>
+                <TouchableOpacity 
+                  onPress={() => { setAddOpen(false); resetForm(); }}
+                  style={styles.closeButton}
+                >
+                  <Ionicons name="close" size={24} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formSection}>
+                <ModernInput 
+                  label="Client Name"
+                  placeholder="Enter client name" 
+                  value={name} 
+                  onChangeText={setName}
+                  variant="glow"
+                />
+                <ModernInput 
+                  label="Contact Information"
+                  placeholder="Phone, email, or social media" 
+                  value={contact} 
+                  onChangeText={setContact} 
+                />
+                <ModernInput 
+                  label="Value Score (1-10)"
+                  placeholder="Rate client value (e.g. 8)" 
+                  value={valueScore} 
+                  onChangeText={setValueScore} 
+                  keyboardType="numeric" 
+                />
+                <ModernInput 
+                  label="Tags"
+                  placeholder="VIP, Regular, High-Spender (comma-separated)" 
+                  value={tagsStr} 
+                  onChangeText={setTagsStr} 
+                />
+                <ModernInput 
+                  label="Notes"
+                  placeholder="Additional notes about this client" 
+                  value={notes} 
+                  onChangeText={setNotes} 
+                />
+              </View>
               
               {editId && (
-                <View style={styles.transactionSection}>
-                  <View style={styles.transactionHeader}>
-                    <Text style={styles.sectionTitle}>Add Transaction</Text>
-                    <TouchableOpacity 
-                      style={styles.toggleButton}
-                      onPress={() => setShowTransactionForm(!showTransactionForm)}
-                    >
-                      <Ionicons 
-                        name={showTransactionForm ? "chevron-up" : "chevron-down"} 
-                        size={20} 
-                        color="#ffd166" 
-                      />
-                    </TouchableOpacity>
-                  </View>
+                <GradientCard variant="accent" style={styles.transactionSection}>
+                  <TouchableOpacity 
+                    style={styles.transactionHeader}
+                    onPress={() => setShowTransactionForm(!showTransactionForm)}
+                  >
+                    <Text style={styles.sectionTitle}>Quick Transaction</Text>
+                    <Ionicons 
+                      name={showTransactionForm ? "chevron-up" : "chevron-down"} 
+                      size={20} 
+                      color={Colors.accent} 
+                    />
+                  </TouchableOpacity>
                   
                   {showTransactionForm && (
                     <View style={styles.transactionForm}>
-                      <View style={styles.segmentedContainer}>
-                        <Segmented
-                          options={[
-                            { label: 'Income', value: 'income' },
-                            { label: 'Expense', value: 'expense' }
-                          ]}
-                          value={transactionType}
-                          onChange={setTransactionType}
+                      <View style={styles.transactionTypeButtons}>
+                        <GradientButton
+                          title="Income"
+                          variant={transactionType === 'income' ? 'primary' : 'secondary'}
+                          size="small"
+                          onPress={() => setTransactionType('income')}
+                          style={styles.typeButton}
+                        />
+                        <GradientButton
+                          title="Expense"
+                          variant={transactionType === 'expense' ? 'primary' : 'secondary'}
+                          size="small"
+                          onPress={() => setTransactionType('expense')}
+                          style={styles.typeButton}
                         />
                       </View>
                       
-                      <Input 
-                        placeholder="Amount" 
+                      <ModernInput 
+                        label="Amount"
+                        placeholder="0.00" 
                         value={transactionAmount} 
                         onChangeText={setTransactionAmount} 
                         keyboardType="numeric" 
                       />
                       
-                      <Input 
-                        placeholder={transactionType === 'income' ? 'Category (e.g. VIP Dance)' : 'Category (e.g. House Fee)'} 
+                      <ModernInput 
+                        label="Category"
+                        placeholder={transactionType === 'income' ? 'VIP Dance, Private Show' : 'House Fee, Tip Out'} 
                         value={transactionCategory} 
                         onChangeText={setTransactionCategory} 
                       />
                       
-                      <Input 
-                        placeholder="Date (YYYY-MM-DD)" 
+                      <ModernInput 
+                        label="Date"
+                        placeholder="YYYY-MM-DD" 
                         value={transactionDate} 
                         onChangeText={setTransactionDate} 
                       />
                       
-                      <Input 
-                        placeholder="Note (optional)" 
+                      <ModernInput 
+                        label="Note (Optional)"
+                        placeholder="Additional details" 
                         value={transactionNote} 
                         onChangeText={setTransactionNote} 
                       />
                       
-                      <Button 
-                        label={`Add ${transactionType === 'income' ? 'Income' : 'Expense'}`} 
-                        variant="secondary" 
-                        onPress={handleAddTransaction} 
+                      <GradientButton 
+                        title={`Add ${transactionType === 'income' ? 'Income' : 'Expense'}`} 
+                        variant="accent" 
+                        onPress={handleAddTransaction}
+                        style={styles.addTransactionButton}
                       />
                     </View>
                   )}
-                </View>
+                </GradientCard>
               )}
               
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
-                <Button label="Cancel" variant="ghost" onPress={() => { setAddOpen(false); resetForm(); }} />
-                <Button label={editId ? 'Save' : 'Add'} variant="primary" onPress={handleSave} />
+              <View style={styles.modalActions}>
+                <GradientButton 
+                  title="Cancel" 
+                  variant="secondary" 
+                  onPress={() => { setAddOpen(false); resetForm(); }}
+                  style={styles.cancelButton}
+                />
+                <GradientButton 
+                  title={editId ? 'Save Changes' : 'Add Client'} 
+                  variant="primary" 
+                  onPress={handleSave}
+                  style={styles.saveButton}
+                />
               </View>
             </ScrollView>
-          </View>
+          </GradientCard>
         </View>
       )}
+
+      {/* Detail Modal */}
       {detailOpen && detail && (
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Client Details</Text>
-            <View style={{ gap: 6 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {Platform.OS !== 'web' ? <Ionicons name="person-circle-outline" size={16} color="#ffd166" /> : null}
-                <Text style={styles.name}>{detail.name}</Text>
-                {typeof detail.valueScore !== 'undefined' && detail.valueScore !== null ? (
-                  <Tag text={`Score ${detail.valueScore}`} backgroundColor="#222" color="#ccc" />
-                ) : null}
+          <GradientCard variant="glow" style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Client Details</Text>
+              <TouchableOpacity 
+                onPress={() => { setDetailOpen(false); setDetail(null); }}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.detailContent}>
+              <View style={styles.clientHeader}>
+                <View style={styles.clientAvatar}>
+                  <Ionicons name="person" size={32} color={Colors.primary} />
+                </View>
+                <View style={styles.clientInfo}>
+                  <Text style={styles.clientName}>{detail.name}</Text>
+                  <Text style={styles.clientContact}>{detail.contact || 'No contact info'}</Text>
+                  {typeof detail.valueScore !== 'undefined' && detail.valueScore !== null && (
+                    <View style={styles.scoreContainer}>
+                      <Text style={styles.scoreLabel}>Value Score:</Text>
+                      <View style={styles.scoreBadge}>
+                        <Text style={styles.scoreValue}>{detail.valueScore}/10</Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
               </View>
-              <Text style={styles.contact}>{detail.contact || '—'}</Text>
-              {Array.isArray(detail.tags) && detail.tags.length ? (
-                <Text style={styles.tags}>Tags: {detail.tags.join(', ')}</Text>
-              ) : null}
-              <Text style={styles.notes}>{detail.notes || ''}</Text>
+
+              {Array.isArray(detail.tags) && detail.tags.length > 0 && (
+                <View style={styles.tagsContainer}>
+                  <Text style={styles.tagsLabel}>Tags:</Text>
+                  <View style={styles.tagsList}>
+                    {detail.tags.map((tag, index) => (
+                      <View key={index} style={styles.tag}>
+                        <Text style={styles.tagText}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {detail.notes && (
+                <View style={styles.notesContainer}>
+                  <Text style={styles.notesLabel}>Notes:</Text>
+                  <Text style={styles.notesText}>{detail.notes}</Text>
+                </View>
+              )}
+
               {(function() {
                 try {
                   const row = (snapshot?.byClient || []).find(r => r.clientId === detail.id);
                   if (!row) return null;
                   return (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Tag text={`Net ${formatCurrency(row.net)}`} backgroundColor="#222" color="#ffd166" />
-                <Tag text={`Income ${formatCurrency(row.income || 0)}`} backgroundColor="#222" color="#06d6a0" />
-                <Tag text={`Expense ${formatCurrency(row.expense || 0)}`} backgroundColor="#222" color="#ff2d90" />
-                    </View>
+                    <GradientCard variant="accent" style={styles.earningsCard}>
+                      <Text style={styles.earningsTitle}>Financial Summary</Text>
+                      <View style={styles.earningsGrid}>
+                        <View style={styles.earningsItem}>
+                          <Text style={styles.earningsLabel}>Net Earnings</Text>
+                          <Text style={[styles.earningsValue, { color: row.net >= 0 ? Colors.success : Colors.error }]}>
+                            {formatCurrency(row.net)}
+                          </Text>
+                        </View>
+                        <View style={styles.earningsItem}>
+                          <Text style={styles.earningsLabel}>Total Income</Text>
+                          <Text style={[styles.earningsValue, { color: Colors.success }]}>
+                            {formatCurrency(row.income || 0)}
+                          </Text>
+                        </View>
+                        <View style={styles.earningsItem}>
+                          <Text style={styles.earningsLabel}>Total Expenses</Text>
+                          <Text style={[styles.earningsValue, { color: Colors.error }]}>
+                            {formatCurrency(row.expense || 0)}
+                          </Text>
+                        </View>
+                      </View>
+                    </GradientCard>
                   );
                 } catch { return null; }
               })()}
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
-              <Button label="Close" variant="ghost" onPress={() => { setDetailOpen(false); setDetail(null); }} />
-              <Button label="Edit" variant="primary" onPress={() => { setDetailOpen(false); openEdit(detail); }} />
-              <Button label="View Shifts" variant="ghost" onPress={() => {
-                if (!detail?.id) return;
-                if (typeof window !== 'undefined' && window.localStorage) {
-                  try { window.localStorage.setItem('clientFilterId', detail.id); } catch {}
-                }
-                try { navigation.navigate('Shifts', { clientId: detail.id }); } catch {}
-              }} />
+
+            <View style={styles.modalActions}>
+              <GradientButton 
+                title="View Shifts" 
+                variant="secondary" 
+                onPress={() => {
+                  if (!detail?.id) return;
+                  if (typeof window !== 'undefined' && window.localStorage) {
+                    try { window.localStorage.setItem('clientFilterId', detail.id); } catch {}
+                  }
+                  try { navigation.navigate('Shifts', { clientId: detail.id }); } catch {}
+                }}
+                style={styles.actionButton}
+              />
+              <GradientButton 
+                title="Edit Client" 
+                variant="primary" 
+                onPress={() => { setDetailOpen(false); openEdit(detail); }}
+                style={styles.actionButton}
+              />
             </View>
-          </View>
+          </GradientCard>
         </View>
       )}
-      <Toast message={toast.message} type={toast.type} visible={toast.visible} />
-    </View>
+
+      <Toast 
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onAction={() => setToast({ visible: false, message: '', type: 'info' })}
+        actionLabel="Dismiss"
+      />
+    </LinearGradient>
   );
 }
 
@@ -467,67 +643,153 @@ function ClientRow({ item, onEdit, onDelete, onView, onPerformance, expanded, pe
   React.useEffect(() => {
     Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true }).start();
   }, []);
+  
   const tags = item.tags || [];
+  const snapshot = {}; // This would come from props in a real implementation
+  
   return (
-    <Animated.View style={[styles.row, { opacity: fade }]}> 
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {Platform.OS !== 'web' ? <Ionicons name="person-outline" size={14} color="#ffd166" /> : null}
-          <Text style={styles.name}>{item.name}</Text>
-          {typeof item.valueScore !== 'undefined' && item.valueScore !== null ? (
-            <Tag text={`Score ${item.valueScore}`} backgroundColor="#222" color="#ccc" />
-          ) : null}
-        </View>
-        <Text style={styles.contact}>{item.contact}</Text>
-        {tags.length ? (
-          <Text style={styles.tags}>Tags: {tags.join(', ')}</Text>
-        ) : null}
-        <Text style={styles.notes}>{item.notes}</Text>
-        <View style={styles.performanceActionsRow}>
-          <Button label={expanded ? 'Hide Performance' : 'Performance'} variant="secondary" onPress={onPerformance} />
-          <Button label="Filter in Analytics" variant="ghost" onPress={onSetAnalyticsFilter} />
-        </View>
-        {expanded && (
-          <View style={styles.performanceContainer}>
-            {perfData ? (
-              <View style={styles.performanceMetricsRow}>
-                <View style={styles.metricBox}><Text style={styles.metricLabel}>Shifts</Text><Text style={styles.metricValue}>{perfData.shiftCount || 0}</Text></View>
-                <View style={styles.metricBox}><Text style={styles.metricLabel}>Total</Text><Text style={styles.metricValue}>{formatCurrency(perfData.totalEarnings || 0)}</Text></View>
-                <View style={styles.metricBox}><Text style={styles.metricLabel}>Avg/Shift</Text><Text style={styles.metricValue}>{formatCurrency(perfData.avgEarnings || 0)}</Text></View>
-                <View style={styles.metricBox}><Text style={styles.metricLabel}>Best Day</Text><Text style={styles.metricValue}>{typeof perfData.bestDay === 'number' ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][perfData.bestDay] : '—'}</Text></View>
+    <Animated.View style={[{ opacity: fade }]}>
+      <GradientCard variant="default" style={styles.clientCard}>
+        <View style={styles.clientRowContent}>
+          <View style={styles.clientMainInfo}>
+            <View style={styles.clientHeader}>
+              <View style={styles.clientAvatar}>
+                <Ionicons name="person" size={20} color={Colors.primary} />
               </View>
-            ) : (
-              <Text style={{ color: '#999', fontSize: 12 }}>No performance data</Text>
+              <View style={styles.clientDetails}>
+                <Text style={styles.clientName}>{item.name}</Text>
+                <Text style={styles.clientContact}>{item.contact || 'No contact info'}</Text>
+                {typeof item.valueScore !== 'undefined' && item.valueScore !== null && (
+                  <View style={styles.scoreContainer}>
+                    <Text style={styles.scoreLabel}>Score:</Text>
+                    <View style={styles.scoreBadge}>
+                      <Text style={styles.scoreValue}>{item.valueScore}/10</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {tags.length > 0 && (
+              <View style={styles.tagsContainer}>
+                <View style={styles.tagsList}>
+                  {tags.slice(0, 3).map((tag, index) => (
+                    <View key={index} style={styles.tag}>
+                      <Text style={styles.tagText}>{tag}</Text>
+                    </View>
+                  ))}
+                  {tags.length > 3 && (
+                    <View style={styles.tag}>
+                      <Text style={styles.tagText}>+{tags.length - 3}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
             )}
-            {Array.isArray(perfData?.earningsHistory) && perfData.earningsHistory.length ? (
-              <View style={styles.historyRow}>
-                {perfData.earningsHistory.slice(0, 12).map((h, idx) => (
-                  <View key={idx} style={styles.historyBar}>
-                    <View style={[styles.historyFill, { height: Math.min(48, Math.max(4, (h.value || 0) / (perfData.avgEarnings || 1) * 12)) }]} />
-                    <Text style={styles.historyLabel}>{h.label}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            {Array.isArray(perfRecentShifts) && perfRecentShifts.length ? (
-              <View style={{ marginTop: 8 }}>
-                <Text style={styles.sectionTitle}>Recent Shifts</Text>
-                {perfRecentShifts.map((s) => (
-                  <View key={s.id || `${s.start}-${s.venueId}`} style={styles.shiftRow}>
-                    <Text style={styles.shiftText}>{(s.start || '').slice(0,16).replace('T',' ')}</Text>
-                    <Text style={styles.shiftText}>{formatCurrency(s.earnings || 0)}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
+
+            {item.notes && (
+              <Text style={styles.clientNotes} numberOfLines={2}>{item.notes}</Text>
+            )}
+
+            <View style={styles.clientActions}>
+              <GradientButton
+                title={expanded ? 'Hide Performance' : 'Performance'}
+                variant="secondary"
+                size="small"
+                onPress={onPerformance}
+                style={styles.actionButton}
+              />
+              <GradientButton
+                title="Analytics"
+                variant="secondary"
+                size="small"
+                onPress={onSetAnalyticsFilter}
+                style={styles.actionButton}
+              />
+            </View>
+
+            {expanded && (
+              <GradientCard variant="glow" style={styles.performanceContainer}>
+                {perfData ? (
+                  <>
+                    <Text style={styles.performanceTitle}>Performance Overview</Text>
+                    <View style={styles.performanceMetrics}>
+                      <View style={styles.metricItem}>
+                        <Text style={styles.metricValue}>{perfData.shiftCount || 0}</Text>
+                        <Text style={styles.metricLabel}>Shifts</Text>
+                      </View>
+                      <View style={styles.metricItem}>
+                        <Text style={styles.metricValue}>{formatCurrency(perfData.totalEarnings || 0)}</Text>
+                        <Text style={styles.metricLabel}>Total</Text>
+                      </View>
+                      <View style={styles.metricItem}>
+                        <Text style={styles.metricValue}>{formatCurrency(perfData.avgEarnings || 0)}</Text>
+                        <Text style={styles.metricLabel}>Avg/Shift</Text>
+                      </View>
+                      <View style={styles.metricItem}>
+                        <Text style={styles.metricValue}>
+                          {typeof perfData.bestDay === 'number' ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][perfData.bestDay] : '—'}
+                        </Text>
+                        <Text style={styles.metricLabel}>Best Day</Text>
+                      </View>
+                    </View>
+
+                    {Array.isArray(perfData?.earningsHistory) && perfData.earningsHistory.length > 0 && (
+                      <View style={styles.historyContainer}>
+                        <Text style={styles.historyTitle}>Earnings History</Text>
+                        <View style={styles.historyChart}>
+                          {perfData.earningsHistory.slice(0, 12).map((h, idx) => (
+                            <View key={idx} style={styles.historyBar}>
+                              <View style={[
+                                styles.historyFill, 
+                                { 
+                                  height: Math.min(48, Math.max(4, (h.value || 0) / (perfData.avgEarnings || 1) * 12)),
+                                  backgroundColor: Colors.gradientPrimary
+                                }
+                              ]} />
+                              <Text style={styles.historyLabel}>{h.label}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                    {Array.isArray(perfRecentShifts) && perfRecentShifts.length > 0 && (
+                      <View style={styles.recentShiftsContainer}>
+                        <Text style={styles.recentShiftsTitle}>Recent Shifts</Text>
+                        {perfRecentShifts.slice(0, 5).map((s) => (
+                          <View key={s.id || `${s.start}-${s.venueId}`} style={styles.shiftRow}>
+                            <Text style={styles.shiftDate}>
+                              {(s.start || '').slice(0,16).replace('T',' ')}
+                            </Text>
+                            <Text style={styles.shiftEarnings}>
+                              {formatCurrency(s.earnings || 0)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                ) : (
+                  <Text style={styles.noDataText}>No performance data available</Text>
+                )}
+              </GradientCard>
+            )}
           </View>
-        )}
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Button label="View" variant="ghost" onPress={onView} />
-        <Button label="Edit" variant="ghost" onPress={onEdit} />
-        <Button label="Delete" variant="ghost" onPress={onDelete} />
-      </View>
+
+          <View style={styles.clientActionButtons}>
+            <TouchableOpacity onPress={onView} style={styles.iconButton}>
+              <Ionicons name="eye" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onEdit} style={styles.iconButton}>
+              <Ionicons name="create" size={20} color={Colors.accent} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onDelete} style={styles.iconButton}>
+              <Ionicons name="trash" size={20} color={Colors.error} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </GradientCard>
     </Animated.View>
   );
 }
@@ -535,103 +797,400 @@ function ClientRow({ item, onEdit, onDelete, onView, onPerformance, expanded, pe
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
-    padding: 16,
   },
-  heading: {
-    color: '#f5f5f5',
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 12,
+  header: {
+    marginBottom: Colors.spacing.lg,
   },
-  row: {
-    backgroundColor: '#121212',
-    borderRadius: 12,
-    padding: 12,
+  headerGradient: {
+    paddingTop: 50,
+    paddingHorizontal: Colors.spacing.lg,
+    paddingBottom: Colors.spacing.lg,
+    borderBottomLeftRadius: Colors.borderRadius.xl,
+    borderBottomRightRadius: Colors.borderRadius.xl,
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  name: {
-    color: '#ffd166',
-    fontSize: 16,
-    fontWeight: '600',
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Colors.spacing.md,
   },
-  contact: {
-    color: '#ccc',
-    fontSize: 12,
-    marginTop: 2,
+  heading: {
+    color: Colors.white,
+    fontSize: Colors.typography.fontSize.xl,
+    fontWeight: Colors.typography.fontWeight.bold,
+    marginBottom: 4,
   },
-  tags: {
-    color: '#999',
-    fontSize: 12,
-    marginTop: 6,
+  subheading: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.medium,
   },
-  notes: {
-    color: '#999',
-    fontSize: 12,
-    marginTop: 6,
+  addButton: {
+    minWidth: 100,
   },
-  separator: { height: 12 },
+  listContainer: {
+    paddingHorizontal: Colors.spacing.lg,
+    paddingBottom: Colors.spacing.xl,
+  },
+  separator: { 
+    height: Colors.spacing.md 
+  },
+  emptyCard: {
+    marginTop: Colors.spacing.xl,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: Colors.spacing.xl,
+    gap: Colors.spacing.md,
+  },
+  emptyTitle: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.lg,
+    fontWeight: Colors.typography.fontWeight.bold,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    color: Colors.textSecondary,
+    fontSize: Colors.typography.fontSize.md,
+    textAlign: 'center',
+    maxWidth: 280,
+    lineHeight: 20,
+  },
+  emptyButton: {
+    marginTop: Colors.spacing.md,
+  },
+  clientCard: {
+    marginBottom: Colors.spacing.sm,
+  },
+  clientRowContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Colors.spacing.md,
+  },
+  clientMainInfo: {
+    flex: 1,
+  },
+  clientHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Colors.spacing.md,
+    marginBottom: Colors.spacing.sm,
+  },
+  clientAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: Colors.borderRadius.full,
+    backgroundColor: 'rgba(177, 156, 217, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clientDetails: {
+    flex: 1,
+  },
+  clientName: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.lg,
+    fontWeight: Colors.typography.fontWeight.bold,
+    marginBottom: 2,
+  },
+  clientContact: {
+    color: Colors.textSecondary,
+    fontSize: Colors.typography.fontSize.sm,
+    marginBottom: Colors.spacing.xs,
+  },
+  scoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Colors.spacing.xs,
+  },
+  scoreLabel: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.xs,
+  },
+  scoreBadge: {
+    backgroundColor: Colors.gradientPrimary,
+    paddingHorizontal: Colors.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: Colors.borderRadius.sm,
+  },
+  scoreValue: {
+    color: Colors.white,
+    fontSize: Colors.typography.fontSize.xs,
+    fontWeight: Colors.typography.fontWeight.bold,
+  },
+  tagsContainer: {
+    marginBottom: Colors.spacing.sm,
+  },
+  tagsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Colors.spacing.xs,
+  },
+  tag: {
+    backgroundColor: 'rgba(199, 255, 0, 0.2)',
+    paddingHorizontal: Colors.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Colors.borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(199, 255, 0, 0.3)',
+  },
+  tagText: {
+    color: Colors.secondary,
+    fontSize: Colors.typography.fontSize.xs,
+    fontWeight: Colors.typography.fontWeight.medium,
+  },
+  clientNotes: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.sm,
+    lineHeight: 18,
+    marginBottom: Colors.spacing.sm,
+  },
+  clientActions: {
+    flexDirection: 'row',
+    gap: Colors.spacing.sm,
+    marginBottom: Colors.spacing.sm,
+  },
+  actionButton: {
+    flex: 1,
+  },
+  clientActionButtons: {
+    flexDirection: 'column',
+    gap: Colors.spacing.xs,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: Colors.borderRadius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  performanceContainer: {
+    marginTop: Colors.spacing.sm,
+  },
+  performanceTitle: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.md,
+    fontWeight: Colors.typography.fontWeight.semibold,
+    marginBottom: Colors.spacing.md,
+  },
+  performanceMetrics: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Colors.spacing.sm,
+    marginBottom: Colors.spacing.md,
+  },
+  metricItem: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingVertical: Colors.spacing.sm,
+    borderRadius: Colors.borderRadius.md,
+  },
+  metricValue: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.md,
+    fontWeight: Colors.typography.fontWeight.bold,
+    marginBottom: 2,
+  },
+  metricLabel: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.xs,
+  },
+  historyContainer: {
+    marginBottom: Colors.spacing.md,
+  },
+  historyTitle: {
+    color: Colors.textSecondary,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.medium,
+    marginBottom: Colors.spacing.sm,
+  },
+  historyChart: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 4,
+    paddingHorizontal: Colors.spacing.sm,
+  },
+  historyBar: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  historyFill: {
+    width: 8,
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
+    marginBottom: 4,
+  },
+  historyLabel: {
+    color: Colors.textMuted,
+    fontSize: 10,
+  },
+  recentShiftsContainer: {
+    marginTop: Colors.spacing.sm,
+  },
+  recentShiftsTitle: {
+    color: Colors.textSecondary,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.medium,
+    marginBottom: Colors.spacing.sm,
+  },
+  shiftRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Colors.spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  shiftDate: {
+    color: Colors.textSecondary,
+    fontSize: Colors.typography.fontSize.xs,
+  },
+  shiftEarnings: {
+    color: Colors.success,
+    fontSize: Colors.typography.fontSize.xs,
+    fontWeight: Colors.typography.fontWeight.semibold,
+  },
+  noDataText: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.sm,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
   modalOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1000,
   },
   modalSheet: {
-    width: '90%',
-    maxHeight: '80%',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
-    gap: 10,
+    width: width * 0.9,
+    maxHeight: '85%',
+    maxWidth: 500,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Colors.spacing.lg,
   },
   modalTitle: {
-    color: '#f5f5f5',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 6,
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.xl,
+    fontWeight: Colors.typography.fontWeight.bold,
+  },
+  closeButton: {
+    padding: Colors.spacing.xs,
+  },
+  formSection: {
+    gap: Colors.spacing.md,
+    marginBottom: Colors.spacing.lg,
   },
   transactionSection: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#333',
+    marginBottom: Colors.spacing.lg,
   },
   transactionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    marginBottom: Colors.spacing.md,
   },
   sectionTitle: {
-    color: '#ffd166',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  performanceActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  performanceContainer: { backgroundColor: '#0f0f0f', borderRadius: 8, padding: 8, marginTop: 8, borderWidth: 1, borderColor: '#222' },
-  performanceMetricsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
-  metricBox: { backgroundColor: '#151515', borderRadius: 6, padding: 8, flex: 1, alignItems: 'center' },
-  metricLabel: { color: '#aaa', fontSize: 11 },
-  metricValue: { color: '#eee', fontSize: 14, fontWeight: '700' },
-  historyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginTop: 8 },
-  historyBar: { alignItems: 'center' },
-  historyFill: { width: 10, backgroundColor: '#ffd166', borderTopLeftRadius: 2, borderTopRightRadius: 2 },
-  historyLabel: { color: '#777', fontSize: 10, marginTop: 2 },
-  shiftRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: '#222' },
-  shiftText: { color: '#ccc', fontSize: 12 },
-  toggleButton: {
-    padding: 4,
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.md,
+    fontWeight: Colors.typography.fontWeight.semibold,
   },
   transactionForm: {
-    gap: 12,
+    gap: Colors.spacing.md,
   },
-  segmentedContainer: {
-    marginBottom: 8,
+  transactionTypeButtons: {
+    flexDirection: 'row',
+    gap: Colors.spacing.sm,
+  },
+  typeButton: {
+    flex: 1,
+  },
+  addTransactionButton: {
+    marginTop: Colors.spacing.sm,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: Colors.spacing.md,
+    marginTop: Colors.spacing.lg,
+  },
+  cancelButton: {
+    flex: 1,
+  },
+  saveButton: {
+    flex: 2,
+  },
+  detailContent: {
+    gap: Colors.spacing.lg,
+  },
+  clientInfo: {
+    flex: 1,
+  },
+  tagsLabel: {
+    color: Colors.textSecondary,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.medium,
+    marginBottom: Colors.spacing.xs,
+  },
+  notesContainer: {
+    marginTop: Colors.spacing.sm,
+  },
+  notesLabel: {
+    color: Colors.textSecondary,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.medium,
+    marginBottom: Colors.spacing.xs,
+  },
+  notesText: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.sm,
+    lineHeight: 20,
+  },
+  earningsCard: {
+    marginTop: Colors.spacing.md,
+  },
+  earningsTitle: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.md,
+    fontWeight: Colors.typography.fontWeight.semibold,
+    marginBottom: Colors.spacing.md,
+  },
+  earningsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Colors.spacing.sm,
+  },
+  earningsItem: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingVertical: Colors.spacing.md,
+    borderRadius: Colors.borderRadius.md,
+  },
+  earningsLabel: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.xs,
+    marginBottom: 4,
+  },
+  earningsValue: {
+    fontSize: Colors.typography.fontSize.md,
+    fontWeight: Colors.typography.fontWeight.bold,
+  },
+  actionButton: {
+    flex: 1,
   },
 });

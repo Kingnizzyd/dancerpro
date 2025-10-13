@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Animated, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Animated, Platform, Alert, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { venues as sampleVenues } from '../data/sampleData';
 import { openDb, getAllVenues, insertVenue, updateVenue, deleteVenue, insertTransaction, getAllClients, getVenuePerformance, getVenueShifts } from '../lib/db';
-import { Button, Input, Tag, Toast } from '../components/UI';
+import { LinearGradient } from 'expo-linear-gradient';
+import { GradientButton, ModernInput, GradientCard, Toast } from '../components/UI';
+import { Colors } from '../constants/Colors';
+
+const { width } = Dimensions.get('window');
 
 export default function Venues() {
   const [items, setItems] = useState(Platform.OS === 'web' ? sampleVenues : []);
@@ -353,82 +357,130 @@ export default function Venues() {
     }, []);
 
     return (
-      <Animated.View style={[styles.row, { opacity: fade }]}>
-        <View style={styles.venueInfo}>
-          <View style={styles.venueHeader}>
-            <Text style={styles.venueName}>{item.name}</Text>
-            <Text style={styles.avgEarnings}>${item.avgEarnings || 0}</Text>
-          </View>
-          {item.location ? (
-            <View style={styles.locationContainer}>
-              <Ionicons name="location-outline" size={14} color="#666" />
-              <Text style={styles.location}>{item.location}</Text>
-            </View>
-          ) : null}
-        </View>
-        <View style={styles.actions}>
-          <Button
-            title="+ Transaction"
-            onPress={() => openQuickTransaction(item.id)}
-            variant="primary"
-            style={[styles.actionButton, styles.transactionButton]}
-          />
-          <Button
-            title={perfForId === item.id ? 'Hide Performance' : 'Performance'}
-            onPress={() => loadPerformance(item.id)}
-            variant="secondary"
-            style={styles.actionButton}
-          />
-          <Button
-            title="Edit"
-            onPress={() => handleEdit(item)}
-            variant="secondary"
-            style={styles.actionButton}
-          />
-          <Button
-            title="Delete"
-            onPress={() => handleDelete(item)}
-            variant="danger"
-            style={styles.actionButton}
-          />
-        </View>
-        {perfForId === item.id && (
-          <View style={styles.performanceContainer}>
-            {perfLoading ? (
-              <Text style={styles.perfLoading}>Loading performance…</Text>
-            ) : perfData ? (
-              <View>
-                <View style={styles.perfMetricsRow}>
-                  <View style={styles.perfMetric}><Text style={styles.perfMetricLabel}>Shifts</Text><Text style={styles.perfMetricValue}>{perfData.shiftCount}</Text></View>
-                  <View style={styles.perfMetric}><Text style={styles.perfMetricLabel}>Total</Text><Text style={styles.perfMetricValue}>${(perfData.totalEarnings||0).toFixed(2)}</Text></View>
-                  <View style={styles.perfMetric}><Text style={styles.perfMetricLabel}>Avg/Shift</Text><Text style={styles.perfMetricValue}>${(perfData.avgEarnings||0).toFixed(2)}</Text></View>
-                  <View style={styles.perfMetric}><Text style={styles.perfMetricLabel}>Best Day</Text><Text style={styles.perfMetricValue}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][perfData.bestDay ?? 0]}</Text></View>
-                </View>
-                <View style={styles.perfActions}>
-                  <Button
-                    title="Filter in Analytics"
-                    onPress={() => setPreferredVenueFilter(item.id)}
-                    variant="primary"
-                    style={styles.perfActionButton}
-                  />
-                </View>
-                <Text style={styles.perfSectionTitle}>Recent Shifts</Text>
-                {perfRecentShifts.length ? (
-                  perfRecentShifts.map(s => (
-                    <View key={s.id} style={styles.perfHistoryItem}>
-                      <Text style={styles.perfHistoryDate}>{new Date(s.start).toLocaleString()}</Text>
-                      <Text style={styles.perfHistoryEarn}>${(s.earnings||0).toFixed(2)}</Text>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={styles.perfEmpty}>No recent shifts</Text>
-                )}
+      <Animated.View style={{ opacity: fade }}>
+        <GradientCard variant="default" style={styles.rowCard}>
+          <View style={styles.venueInfo}>
+            <View style={styles.venueHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="business" size={18} color={Colors.accent} />
+                <Text style={styles.venueName}>{item.name}</Text>
               </View>
-            ) : (
-              <Text style={styles.perfEmpty}>No performance data</Text>
-            )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="cash-outline" size={16} color={Colors.success} />
+                <Text style={styles.avgEarnings}>${item.avgEarnings || 0}</Text>
+              </View>
+            </View>
+            {item.location ? (
+              <View style={styles.locationContainer}>
+                <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
+                <Text style={styles.location}>{item.location}</Text>
+              </View>
+            ) : null}
           </View>
-        )}
+
+          <View style={styles.actions}>
+            <GradientButton
+              title="+ Transaction"
+              onPress={() => openQuickTransaction(item.id)}
+              variant="primary"
+              style={[styles.actionButton, styles.transactionButton]}
+            />
+            <GradientButton
+              title={perfForId === item.id ? 'Hide Performance' : 'Performance'}
+              onPress={() => loadPerformance(item.id)}
+              variant="secondary"
+              style={styles.actionButton}
+            />
+            <GradientButton
+              title="Edit"
+              onPress={() => handleEdit(item)}
+              variant="secondary"
+              style={styles.actionButton}
+            />
+            <GradientButton
+              title="Delete"
+              onPress={() => handleDelete(item)}
+              variant="secondary"
+              style={styles.actionButton}
+            />
+          </View>
+
+          {perfForId === item.id && (
+            <GradientCard variant="glow" style={styles.performanceCard}>
+              {perfLoading ? (
+                <Text style={styles.perfLoading}>Loading performance…</Text>
+              ) : perfData ? (
+                <View>
+                  {/* Enhanced Analytics Cards */}
+                  <View style={styles.analyticsCardsContainer}>
+                    <GradientCard variant="subtle" style={styles.analyticsCard}>
+                      <View style={styles.analyticsCardHeader}>
+                        <Text style={styles.analyticsCardIcon}>📊</Text>
+                        <Text style={styles.analyticsCardTitle}>Performance</Text>
+                      </View>
+                      <View style={styles.analyticsMetrics}>
+                        <View style={styles.analyticsMetric}>
+                          <Text style={styles.analyticsMetricValue}>{perfData.shiftCount}</Text>
+                          <Text style={styles.analyticsMetricLabel}>Total Shifts</Text>
+                        </View>
+                        <View style={styles.analyticsMetric}>
+                          <Text style={styles.analyticsMetricValue}>${(perfData.totalEarnings||0).toFixed(2)}</Text>
+                          <Text style={styles.analyticsMetricLabel}>Total Earnings</Text>
+                        </View>
+                      </View>
+                    </GradientCard>
+
+                    <GradientCard variant="subtle" style={styles.analyticsCard}>
+                      <View style={styles.analyticsCardHeader}>
+                        <Text style={styles.analyticsCardIcon}>💰</Text>
+                        <Text style={styles.analyticsCardTitle}>Averages</Text>
+                      </View>
+                      <View style={styles.analyticsMetrics}>
+                        <View style={styles.analyticsMetric}>
+                          <Text style={styles.analyticsMetricValue}>${(perfData.avgEarnings||0).toFixed(2)}</Text>
+                          <Text style={styles.analyticsMetricLabel}>Per Shift</Text>
+                        </View>
+                        <View style={styles.analyticsMetric}>
+                          <Text style={styles.analyticsMetricValue}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][perfData.bestDay ?? 0]}</Text>
+                          <Text style={styles.analyticsMetricLabel}>Best Day</Text>
+                        </View>
+                      </View>
+                    </GradientCard>
+                  </View>
+
+                  {/* Legacy metrics row for comparison */}
+                  <View style={styles.perfMetricsRow}>
+                    <View style={styles.perfMetric}><Text style={styles.perfMetricLabel}>Shifts</Text><Text style={styles.perfMetricValue}>{perfData.shiftCount}</Text></View>
+                    <View style={styles.perfMetric}><Text style={styles.perfMetricLabel}>Total</Text><Text style={styles.perfMetricValue}>${(perfData.totalEarnings||0).toFixed(2)}</Text></View>
+                    <View style={styles.perfMetric}><Text style={styles.perfMetricLabel}>Avg/Shift</Text><Text style={styles.perfMetricValue}>${(perfData.avgEarnings||0).toFixed(2)}</Text></View>
+                    <View style={styles.perfMetric}><Text style={styles.perfMetricLabel}>Best Day</Text><Text style={styles.perfMetricValue}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][perfData.bestDay ?? 0]}</Text></View>
+                  </View>
+                  <View style={styles.perfActions}>
+                    <GradientButton
+                      title="Filter in Analytics"
+                      onPress={() => setPreferredVenueFilter(item.id)}
+                      variant="primary"
+                      style={styles.perfActionButton}
+                    />
+                  </View>
+                  <Text style={styles.perfSectionTitle}>Recent Shifts</Text>
+                  {perfRecentShifts.length ? (
+                    perfRecentShifts.map(s => (
+                      <View key={s.id} style={styles.perfHistoryItem}>
+                        <Text style={styles.perfHistoryDate}>{new Date(s.start).toLocaleString()}</Text>
+                        <Text style={styles.perfHistoryEarn}>${(s.earnings||0).toFixed(2)}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.perfEmpty}>No recent shifts</Text>
+                  )}
+                </View>
+              ) : (
+                <Text style={styles.perfEmpty}>No performance data</Text>
+              )}
+            </GradientCard>
+          )}
+        </GradientCard>
       </Animated.View>
     );
   }
@@ -437,7 +489,7 @@ export default function Venues() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Venues</Text>
-        <Button
+        <GradientButton
           title="Add Venue"
           onPress={() => {
             resetForm();
@@ -453,21 +505,21 @@ export default function Venues() {
           <Text style={styles.formTitle}>
             {editId ? 'Edit Venue' : 'Add New Venue'}
           </Text>
-          <Input
+          <ModernInput
             label="Venue Name"
             value={name}
             onChangeText={setName}
             placeholder="Enter venue name"
             style={styles.input}
           />
-          <Input
+          <ModernInput
             label="Location"
             value={location}
             onChangeText={setLocation}
             placeholder="Enter location (optional)"
             style={styles.input}
           />
-          <Input
+          <ModernInput
             label="Average Earnings"
             value={avgEarnings}
             onChangeText={setAvgEarnings}
@@ -476,7 +528,7 @@ export default function Venues() {
             style={styles.input}
           />
           <View style={styles.formActions}>
-            <Button
+            <GradientButton
               title="Cancel"
               onPress={() => {
                 resetForm();
@@ -485,7 +537,7 @@ export default function Venues() {
               variant="secondary"
               style={styles.formButton}
             />
-            <Button
+            <GradientButton
               title={editId ? 'Update' : 'Add'}
               onPress={handleSave}
               variant="primary"
@@ -496,66 +548,80 @@ export default function Venues() {
       )}
 
       {showQuickTransaction && (
-        <View style={styles.form}>
-          <Text style={styles.formTitle}>Quick Transaction Entry</Text>
-          <Text style={styles.formSubtitle}>
-            Add transaction data for {items.find(v => v.id === selectedVenueId)?.name || 'venue'}
-          </Text>
+        <GradientCard variant="glow" style={styles.transactionModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalTitleContainer}>
+              <Ionicons name="flash" size={24} color={Colors.accent} />
+              <Text style={styles.modalTitle}>Quick Transaction Entry</Text>
+            </View>
+            <GradientButton
+              title="✕"
+              onPress={resetTransactionForm}
+              variant="secondary"
+              style={styles.closeButton}
+            />
+          </View>
           
-          <View style={styles.segmentedContainer}>
-            <Button
-              title="Income"
+          <View style={styles.modalSubtitle}>
+            <Ionicons name="business" size={16} color={Colors.textSecondary} />
+            <Text style={styles.modalSubtitleText}>
+              Add transaction data for {items.find(v => v.id === selectedVenueId)?.name || 'venue'}
+            </Text>
+          </View>
+          
+          <View style={styles.transactionTypeSelector}>
+            <GradientButton
+              title="💰 Income"
               onPress={() => {
                 setTransactionType('income');
                 setTransactionCategory('VIP Dance');
               }}
               variant={transactionType === 'income' ? 'primary' : 'secondary'}
-              style={[styles.segmentButton, transactionType === 'income' && styles.activeSegment]}
+              style={[styles.typeButton, transactionType === 'income' && styles.activeTypeButton]}
             />
-            <Button
-              title="Expense"
+            <GradientButton
+              title="💸 Expense"
               onPress={() => {
                 setTransactionType('expense');
                 setTransactionCategory('House Fee');
               }}
               variant={transactionType === 'expense' ? 'primary' : 'secondary'}
-              style={[styles.segmentButton, transactionType === 'expense' && styles.activeSegment]}
+              style={[styles.typeButton, transactionType === 'expense' && styles.activeTypeButton]}
             />
           </View>
 
-          <Input
-            label="Amount"
-            value={transactionAmount}
-            onChangeText={setTransactionAmount}
-            placeholder="Enter amount"
-            keyboardType="numeric"
-            style={styles.input}
-          />
-          
-          <Input
-            label="Category"
-            value={transactionCategory}
-            onChangeText={setTransactionCategory}
-            placeholder={transactionType === 'income' ? 'VIP Dance, Lapdance, etc.' : 'House Fee, Parking, etc.'}
-            style={styles.input}
-          />
-          
-          <Input
-            label="Date"
-            value={transactionDate}
-            onChangeText={setTransactionDate}
-            placeholder="YYYY-MM-DD"
-            style={styles.input}
-          />
-          
-          {clientOptions.length > 0 && (
-            <View style={styles.pickerContainer}>
-              <Text style={styles.pickerLabel}>Client (Optional)</Text>
-              <View style={styles.clientPicker}>
-                <Button
-                  title={selectedClientId ? clientOptions.find(c => c.id === selectedClientId)?.name || 'Select Client' : 'No Client'}
+          <View style={styles.modalForm}>
+            <ModernInput
+              label="Amount"
+              value={transactionAmount}
+              onChangeText={setTransactionAmount}
+              placeholder="Enter amount"
+              keyboardType="numeric"
+              style={styles.modalInput}
+            />
+            
+            <ModernInput
+              label="Category"
+              value={transactionCategory}
+              onChangeText={setTransactionCategory}
+              placeholder={transactionType === 'income' ? 'VIP Dance, Lapdance, etc.' : 'House Fee, Parking, etc.'}
+              style={styles.modalInput}
+            />
+            
+            <ModernInput
+              label="Date"
+              value={transactionDate}
+              onChangeText={setTransactionDate}
+              placeholder="YYYY-MM-DD"
+              style={styles.modalInput}
+            />
+            
+            {clientOptions.length > 0 && (
+              <View style={styles.clientSection}>
+                <Text style={styles.clientLabel}>Client (Optional)</Text>
+                <GradientButton
+                  title={selectedClientId ? `👤 ${clientOptions.find(c => c.id === selectedClientId)?.name}` : '👤 No Client'}
                   onPress={() => {
-                    // Simple client selection - cycle through options
                     const currentIndex = clientOptions.findIndex(c => c.id === selectedClientId);
                     const nextIndex = currentIndex + 1 >= clientOptions.length ? -1 : currentIndex + 1;
                     setSelectedClientId(nextIndex === -1 ? null : clientOptions[nextIndex].id);
@@ -564,33 +630,33 @@ export default function Venues() {
                   style={styles.clientButton}
                 />
               </View>
-            </View>
-          )}
+            )}
+            
+            <ModernInput
+              label="Note (Optional)"
+              value={transactionNote}
+              onChangeText={setTransactionNote}
+              placeholder="Additional notes"
+              style={styles.modalInput}
+              multiline
+            />
+          </View>
           
-          <Input
-            label="Note (Optional)"
-            value={transactionNote}
-            onChangeText={setTransactionNote}
-            placeholder="Additional notes"
-            style={styles.input}
-            multiline
-          />
-          
-          <View style={styles.formActions}>
-            <Button
+          <View style={styles.modalActions}>
+            <GradientButton
               title="Cancel"
               onPress={resetTransactionForm}
               variant="secondary"
-              style={styles.formButton}
+              style={styles.modalActionButton}
             />
-            <Button
+            <GradientButton
               title="Add Transaction"
               onPress={handleQuickTransaction}
               variant="primary"
-              style={styles.formButton}
+              style={[styles.modalActionButton, styles.primaryActionButton]}
             />
           </View>
-        </View>
+        </GradientCard>
       )}
 
       <FlatList
@@ -670,131 +736,215 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#111',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#333',
+  rowCard: {
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   venueInfo: {
     flex: 1,
+    marginBottom: 16,
   },
   venueHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   venueName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#fff',
     flex: 1,
+    letterSpacing: 0.5,
   },
   avgEarnings: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#06d6a0',
+    textShadowColor: 'rgba(6, 214, 160, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
   },
   location: {
     fontSize: 14,
-    color: '#666',
+    color: '#bbb',
+    fontWeight: '500',
   },
   actions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   actionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    minWidth: 60,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minWidth: 80,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   transactionButton: {
     backgroundColor: '#06d6a0',
-    minWidth: 90,
+    minWidth: 110,
+    shadowColor: '#06d6a0',
+    shadowOpacity: 0.4,
   },
-  performanceContainer: {
-    marginTop: 12,
-    backgroundColor: '#0c0c0c',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 10,
-    padding: 12,
+  performanceCard: {
+    marginTop: 16,
+    padding: 20,
+    borderRadius: 16,
   },
   perfLoading: {
     color: '#999',
     fontSize: 14,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   perfMetricsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
-    gap: 8,
+    marginBottom: 16,
+    gap: 12,
     flexWrap: 'wrap',
   },
   perfMetric: {
     flex: 1,
-    minWidth: 100,
-    backgroundColor: '#111',
-    borderRadius: 8,
-    padding: 8,
+    minWidth: 110,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    padding: 12,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
   },
   perfMetricLabel: {
-    color: '#888',
+    color: '#aaa',
     fontSize: 12,
-    marginBottom: 4,
+    marginBottom: 6,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   perfMetricValue: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   perfSectionTitle: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 8,
-    marginBottom: 6,
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 16,
+    marginBottom: 12,
+    letterSpacing: 0.5,
   },
   perfActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginBottom: 8,
+    marginBottom: 16,
   },
   perfActionButton: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
   },
   perfHistoryItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#222',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#06d6a0',
   },
   perfHistoryDate: {
-    color: '#bbb',
-    fontSize: 12,
+    color: '#ccc',
+    fontSize: 13,
+    fontWeight: '500',
   },
   perfHistoryEarn: {
     color: '#06d6a0',
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
   },
   perfEmpty: {
     color: '#888',
-    fontSize: 13,
+    fontSize: 14,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 20,
+  },
+  // New analytics card styles
+  analyticsCardsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  analyticsCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  analyticsCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  analyticsCardIcon: {
+    fontSize: 18,
+  },
+  analyticsCardTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  analyticsMetrics: {
+    gap: 8,
+  },
+  analyticsMetric: {
+    alignItems: 'center',
+  },
+  analyticsMetricValue: {
+    color: '#06d6a0',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  analyticsMetricLabel: {
+    color: '#aaa',
+    fontSize: 11,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
   emptyState: {
     alignItems: 'center',
@@ -853,5 +1003,134 @@ const styles = StyleSheet.create({
   clientButton: {
     backgroundColor: 'transparent',
     borderWidth: 0,
+  },
+  
+  // Enhanced Transaction Modal Styles
+  transactionModal: {
+position: 'absolute',
+top: 20,
+left: 20,
+right: 20,
+zIndex: 1000,
+padding: 24,
+borderRadius: 20,
+shadowColor: '#000',
+shadowOffset: { width: 0, height: 8 },
+shadowOpacity: 0.3,
+shadowRadius: 16,
+elevation: 12,
+maxHeight: '90%',
+},
+modalHeader: {
+flexDirection: 'row',
+justifyContent: 'space-between',
+alignItems: 'center',
+marginBottom: 16,
+paddingBottom: 16,
+borderBottomWidth: 1,
+borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+},
+modalTitleContainer: {
+flexDirection: 'row',
+alignItems: 'center',
+gap: 12,
+},
+modalTitle: {
+fontSize: 20,
+fontWeight: '700',
+color: '#fff',
+textShadowColor: 'rgba(6, 214, 160, 0.3)',
+textShadowOffset: { width: 0, height: 1 },
+textShadowRadius: 4,
+},
+closeButton: {
+width: 36,
+height: 36,
+borderRadius: 18,
+padding: 0,
+minWidth: 36,
+justifyContent: 'center',
+alignItems: 'center',
+},
+modalSubtitle: {
+flexDirection: 'row',
+alignItems: 'center',
+gap: 8,
+marginBottom: 20,
+padding: 12,
+backgroundColor: 'rgba(255, 255, 255, 0.05)',
+borderRadius: 12,
+borderLeftWidth: 3,
+borderLeftColor: Colors.accent,
+},
+modalSubtitleText: {
+fontSize: 14,
+color: Colors.textSecondary,
+fontWeight: '500',
+},
+transactionTypeSelector: {
+flexDirection: 'row',
+gap: 12,
+marginBottom: 24,
+padding: 4,
+backgroundColor: 'rgba(255, 255, 255, 0.05)',
+borderRadius: 16,
+},
+typeButton: {
+flex: 1,
+paddingVertical: 12,
+borderRadius: 12,
+},
+activeTypeButton: {
+shadowColor: Colors.accent,
+shadowOffset: { width: 0, height: 4 },
+shadowOpacity: 0.4,
+shadowRadius: 8,
+elevation: 6,
+},
+modalForm: {
+gap: 16,
+marginBottom: 24,
+},
+modalInput: {
+backgroundColor: 'rgba(255, 255, 255, 0.08)',
+borderRadius: 12,
+borderWidth: 1,
+borderColor: 'rgba(255, 255, 255, 0.1)',
+},
+clientSection: {
+gap: 8,
+},
+clientLabel: {
+fontSize: 14,
+fontWeight: '600',
+color: '#fff',
+marginBottom: 4,
+},
+clientButton: {
+backgroundColor: 'rgba(255, 255, 255, 0.08)',
+borderRadius: 12,
+borderWidth: 1,
+borderColor: 'rgba(255, 255, 255, 0.1)',
+paddingVertical: 14,
+},
+modalActions: {
+flexDirection: 'row',
+gap: 12,
+paddingTop: 16,
+borderTopWidth: 1,
+borderTopColor: 'rgba(255, 255, 255, 0.1)',
+},
+modalActionButton: {
+flex: 1,
+paddingVertical: 14,
+borderRadius: 12,
+},
+primaryActionButton: {
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
   },
 });
