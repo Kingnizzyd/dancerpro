@@ -8,6 +8,7 @@ import { Card, Button, Segmented } from '../components/UI';
 import { formatCurrency } from '../utils/formatters';
 import { Colors } from '../constants/Colors';
 import { BACKEND_URL } from '../lib/config';
+import { fetchCloudSnapshot } from '../lib/api';
 import WebSocketService from '../services/WebSocketService';
 import { useAuth } from '../context/AuthContext';
 
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const [backendHealth, setBackendHealth] = useState('unknown'); // 'healthy' | 'degraded' | 'down' | 'unknown'
   const [healthChecking, setHealthChecking] = useState(false);
   const [lastHealthCheck, setLastHealthCheck] = useState(null);
+  const [autoSynced, setAutoSynced] = useState(false);
 
   const refreshDashboardData = async () => {
     setRefreshing(true);
@@ -112,6 +114,32 @@ export default function Dashboard() {
   useEffect(() => {
     refreshDashboardData();
   }, [days]);
+
+  // Auto-sync from backend when healthy and an auth token exists
+  useEffect(() => {
+    if (autoSynced) return;
+    try {
+      const token = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem('authToken') : null;
+      if (backendHealth === 'healthy' && token) {
+        (async () => {
+          try {
+            setRefreshing(true);
+            const snap = await fetchCloudSnapshot(token);
+            const db = openDb();
+            await importAllDataSnapshot(db, snap);
+            await refreshDashboardData();
+            setAutoSynced(true);
+            setDataMsg('Cloud data synced');
+            setTimeout(() => setDataMsg(''), 2500);
+          } catch (e) {
+            console.warn('Auto cloud sync failed', e);
+          } finally {
+            setRefreshing(false);
+          }
+        })();
+      }
+    } catch {}
+  }, [backendHealth, autoSynced]);
 
   // Real-time updates: subscribe to socket events to refresh snapshot and recents
   useEffect(() => {
@@ -261,11 +289,37 @@ export default function Dashboard() {
     }
   };
 
+  const handleSyncCloud = async () => {
+    try {
+      setRefreshing(true);
+      const snap = await fetchCloudSnapshot();
+      const db = openDb();
+      await importAllDataSnapshot(db, snap);
+      await refreshDashboardData();
+      setDataMsg('Synced from cloud');
+      setTimeout(() => setDataMsg(''), 2500);
+    } catch (e) {
+      console.warn('Cloud sync failed', e);
+      setDataMsg(`Cloud sync failed: ${e.message || 'Error'}`);
+      setTimeout(() => setDataMsg(''), 3000);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.heading}>Dashboard</Text>
         <View style={styles.headerActions}>
+          <TouchableOpacity 
+            style={styles.viewAllButton} 
+            onPress={handleSyncCloud}
+            accessibilityRole="button"
+            accessibilityLabel="Sync cloud data"
+          >
+            <Text style={styles.viewAllText}>Sync Cloud</Text>
+          </TouchableOpacity>
           <View style={styles.healthBadge} accessibilityLabel={`Backend ${backendHealth}`}>
             <View
               style={[
