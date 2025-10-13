@@ -1,0 +1,8 @@
+[build]
+  base = "dancerpro-mobile"
+  command = "npx expo export -p web --output-dir dist && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js"
+  publish = "dist"
+
+[build.environment]
+  # Set this in Netlify UI or as a secure env var
+  EXPO_PUBLIC_BACKEND_URL = ""
