@@ -1,0 +1,16 @@
+{
+  "snapshot": {
+    "venues": [],
+    "shifts": [],
+    "transactions": [],
+    "clients": [],
+    "outfits": [],
+    "events": []
+  },
+  "metadata": {
+    "updatedAt": "2025-10-14T01:44:23.974Z",
+    "version": 1,
+    "deviceId": "server-clear",
+    "clearedAt": "2025-10-14T01:44:23.973Z"
+  }
+}

@@ -1011,6 +1011,57 @@ app.post('/api/test/reset-users', (req, res) => {
   }
 });
 
+// Dev-only: clear specific user data for testing
+app.post('/api/test/clear-user-data', (req, res) => {
+  try {
+    const environment = process.env.NODE_ENV || 'development';
+    if (environment === 'production') {
+      return res.status(403).json({ error: 'Not allowed in production' });
+    }
+    
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Find user by email
+    const users = readUsers();
+    const user = users.find(u => u.email === email);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Clear user's snapshot data by writing empty snapshot
+    const emptySnapshot = {
+      venues: [],
+      shifts: [],
+      transactions: [],
+      clients: [],
+      outfits: [],
+      events: []
+    };
+    
+    const cleared = writeUserSnapshot(user.id, emptySnapshot, { 
+      deviceId: 'server-clear',
+      clearedAt: new Date().toISOString()
+    });
+    
+    if (!cleared) {
+      return res.status(500).json({ error: 'Failed to clear user data' });
+    }
+    
+    return res.json({ 
+      success: true, 
+      message: `Data cleared for user: ${email}`,
+      userId: user.id,
+      clearedAt: cleared.metadata.clearedAt
+    });
+  } catch (error) {
+    console.error('Clear user data error:', error);
+    res.status(500).json({ error: 'Internal server error during data clear' });
+  }
+});
+
 // ---- Cloud Sync API (JWT protected) ----
 // Push local data snapshot to cloud
 app.post('/api/sync/export', authenticateToken, (req, res) => {
