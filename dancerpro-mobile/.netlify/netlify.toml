@@ -1,19 +1,20 @@
+functionsDirectory = "C:\\Users\\hasbe\\dancerpro\\dancerpro-mobile\\netlify\\functions"
+functionsDirectoryOrigin = "config-v1"
+redirectsOrigin = "config"
 plugins = []
 headers = []
-redirects = []
-
-[functions]
-
-[functions."*"]
 
 [build]
 publish = "C:\\Users\\hasbe\\dancerpro\\dancerpro-mobile\\dist"
 publishOrigin = "config"
 commandOrigin = "config"
 base = "C:\\Users\\hasbe\\dancerpro\\dancerpro-mobile"
-command = "npx expo export -p web --output-dir dist && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js"
+command = "cd netlify/functions && npm install && cd ../.. && npx expo export -p web --output-dir dist && node scripts/process-figma-assets.js && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js && node scripts/copy-public.js"
+functions = "C:\\Users\\hasbe\\dancerpro\\dancerpro-mobile\\netlify\\functions"
 
 [build.environment]
+NODE_VERSION = "20"
+JWT_SECRET = "your-jwt-secret-key-here"
 
 [build.processing]
 
@@ -26,3 +27,19 @@ command = "npx expo export -p web --output-dir dist && node scripts/add-pwa-asse
 [build.processing.js]
 
 [build.services]
+
+[functions]
+
+[functions."*"]
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]

@@ -355,15 +355,14 @@ const LoginScreen = ({ navigation }) => {
                   error={errors.email}
                 />
                 <GradientButton
+                  title="Continue"
                   variant="primary"
                   size="large"
                   onPress={handleContinue}
                   disabled={loading || !email.trim()}
                   loading={loading}
                   style={styles.continueButton}
-                >
-                  Continue
-                </GradientButton>
+                />
               </View>
             ) : (
               <View style={styles.loginStep}>
@@ -391,15 +390,14 @@ const LoginScreen = ({ navigation }) => {
                 />
                 
                 <GradientButton
+                  title="Sign In"
                   variant="primary"
                   size="large"
                   onPress={handleLogin}
                   disabled={loading || !isFormValid}
                   loading={loading}
                   style={styles.loginButton}
-                >
-                  Sign In
-                </GradientButton>
+                />
               </View>
             )}
           </GradientCard>

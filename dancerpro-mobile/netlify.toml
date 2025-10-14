@@ -9,3 +9,9 @@
  # Example: EXPO_PUBLIC_BACKEND_URL=https://<your-site>.netlify.app/.netlify/functions
  NODE_VERSION = "20"
  JWT_SECRET = "your-jwt-secret-key-here"
+
+# SPA redirect rules for client-side routing
+[[redirects]]
+ from = "/*"
+ to = "/index.html"
+ status = 200
