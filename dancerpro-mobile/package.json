@@ -8,7 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "export:web": "cmd /c node_modules\\.bin\\expo.cmd export -p web --output-dir dist && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js && node scripts/generate-qr.js && node scripts/copy-public.js",
+    "export:web": "cmd /c node_modules\\.bin\\expo.cmd export -p web --output-dir dist && node scripts/process-figma-assets.js && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js && node scripts/generate-qr.js && node scripts/copy-public.js",
     "lint": "eslint ./components ./screens ./utils ./navigation ./App.js ./TestApp.js --ext .js",
     "lint:fix": "npm run lint -- --fix"
   },

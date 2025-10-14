@@ -1,5 +1,5 @@
 [build]
- command = "cd netlify/functions && npm install && cd ../.. && npx expo export -p web --output-dir dist && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js && node scripts/copy-public.js"
+ command = "cd netlify/functions && npm install && cd ../.. && npx expo export -p web --output-dir dist && node scripts/process-figma-assets.js && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js && node scripts/copy-public.js"
  publish = "dist"
  functions = "netlify/functions"
 

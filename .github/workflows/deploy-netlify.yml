@@ -28,6 +28,9 @@ jobs:
       - name: Export web build
         run: npx expo export -p web --output-dir dist
 
+      - name: Process Figma assets
+        run: node scripts/process-figma-assets.js
+
       - name: Add PWA assets
         run: node scripts/add-pwa-assets.js
 
