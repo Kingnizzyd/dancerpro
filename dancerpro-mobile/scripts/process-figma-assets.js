@@ -9,8 +9,29 @@ const path = require('path');
  */
 
 const assetsDir = path.join(__dirname, '..', 'assets');
+// Use the dist directory that Netlify creates (same as expo export output)
 const distDir = path.join(__dirname, '..', 'dist');
 const publicDir = path.join(__dirname, '..', 'public');
+
+// Main execution
+function main() {
+  console.log('🎨 Processing Figma assets...');
+  
+  // Ensure dist directory exists (it should after expo export)
+  if (!fs.existsSync(distDir)) {
+    console.log('⚠️  Dist directory not found - this script should run after expo export');
+    console.log('Creating dist directory for asset processing...');
+    fs.mkdirSync(distDir, { recursive: true });
+  }
+  
+  ensureDirectories();
+  processSvgIcons();
+  processImages();
+  validateDesignTokens();
+  generateAssetManifest();
+  
+  console.log('✅ Figma asset processing complete');
+}
 
 // Ensure directories exist
 function ensureDirectories() {
@@ -151,25 +172,13 @@ function generateAssetManifest() {
   console.log('Generated asset manifest');
 }
 
-// Main execution
-function main() {
-  console.log('🎨 Processing Figma assets...');
-  
-  ensureDirectories();
-  processSvgIcons();
-  processImages();
-  validateDesignTokens();
-  generateAssetManifest();
-  
-  console.log('✅ Figma asset processing complete');
-}
-
 // Run if called directly
 if (require.main === module) {
   main();
 }
 
 module.exports = {
+  main,
   ensureDirectories,
   processSvgIcons,
   processImages,
