@@ -1,16 +1,37 @@
 // Currency formatting utility
+// Simple in-memory caches for Intl formatters to avoid re-creating formatters
+const currencyFormatterCache = new Map();
+const numberFormatterCache = new Map();
+const dateTimeFormatterCache = new Map();
+
+function getCacheKey(locale, options) {
+  // Stable stringify for options object (sort keys)
+  const keys = Object.keys(options || {}).sort();
+  const normalized = keys.reduce((acc, k) => {
+    acc[k] = options[k];
+    return acc;
+  }, {});
+  return `${locale}|${JSON.stringify(normalized)}`;
+}
+
 export const formatCurrency = (amount, currency = 'USD', locale = 'en-US') => {
   if (amount === null || amount === undefined || isNaN(amount)) {
     return '$0.00';
   }
-  
+
   try {
-    return new Intl.NumberFormat(locale, {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(Number(amount));
+    const key = `${locale}|${currency}|2`;
+    let formatter = currencyFormatterCache.get(key);
+    if (!formatter) {
+      formatter = new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      currencyFormatterCache.set(key, formatter);
+    }
+    return formatter.format(Number(amount));
   } catch (error) {
     // Fallback for unsupported locales or currencies
     return `$${Number(amount).toFixed(2)}`;
@@ -20,15 +41,23 @@ export const formatCurrency = (amount, currency = 'USD', locale = 'en-US') => {
 // Date formatting utilities
 export const formatDate = (date, options = {}) => {
   if (!date) return '';
-  
+
   const defaultOptions = {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   };
-  
+
   try {
-    return new Date(date).toLocaleDateString('en-US', { ...defaultOptions, ...options });
+    const locale = 'en-US';
+    const fmtOptions = { ...defaultOptions, ...options };
+    const key = getCacheKey(locale, fmtOptions);
+    let formatter = dateTimeFormatterCache.get(key);
+    if (!formatter) {
+      formatter = new Intl.DateTimeFormat(locale, fmtOptions);
+      dateTimeFormatterCache.set(key, formatter);
+    }
+    return formatter.format(new Date(date));
   } catch (error) {
     return date.toString();
   }
@@ -36,15 +65,23 @@ export const formatDate = (date, options = {}) => {
 
 export const formatDateTime = (date) => {
   if (!date) return '';
-  
+
   try {
-    return new Date(date).toLocaleString('en-US', {
+    const locale = 'en-US';
+    const options = {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    });
+    };
+    const key = getCacheKey(locale, options);
+    let formatter = dateTimeFormatterCache.get(key);
+    if (!formatter) {
+      formatter = new Intl.DateTimeFormat(locale, options);
+      dateTimeFormatterCache.set(key, formatter);
+    }
+    return formatter.format(new Date(date));
   } catch (error) {
     return date.toString();
   }
@@ -52,27 +89,46 @@ export const formatDateTime = (date) => {
 
 export const formatTime = (date) => {
   if (!date) return '';
-  
+
   try {
-    return new Date(date).toLocaleTimeString('en-US', {
+    const locale = 'en-US';
+    const options = {
       hour: '2-digit',
       minute: '2-digit',
-    });
+    };
+    const key = getCacheKey(locale, options);
+    let formatter = dateTimeFormatterCache.get(key);
+    if (!formatter) {
+      formatter = new Intl.DateTimeFormat(locale, options);
+      dateTimeFormatterCache.set(key, formatter);
+    }
+    return formatter.format(new Date(date));
   } catch (error) {
     return date.toString();
   }
 };
 
 // Number formatting utilities
-export const formatNumber = (number, decimals = 0) => {
+export const formatNumber = (number, decimals = 0, locale = 'en-US') => {
   if (number === null || number === undefined || isNaN(number)) {
     return '0';
   }
-  
-  return Number(number).toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
+
+  try {
+    const key = `${locale}|${decimals}`;
+    let formatter = numberFormatterCache.get(key);
+    if (!formatter) {
+      formatter = new Intl.NumberFormat(locale, {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      });
+      numberFormatterCache.set(key, formatter);
+    }
+    return formatter.format(Number(number));
+  } catch (error) {
+    // Fallback
+    return Number(number).toFixed(decimals);
+  }
 };
 
 export const formatPercentage = (value, decimals = 1) => {

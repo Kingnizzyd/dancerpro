@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,177 +13,95 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { secureSet, secureGet } from '../lib/secureStorage';
 import { BACKEND_URL } from '../lib/config';
-import { showErrorAlert, validateForm } from '../utils/errorHandler';
 import { Colors } from '../constants/Colors';
-import { Toast, GradientButton, GradientCard, ModernInput } from '../components/UI';
+import { Toast, GradientButton, GradientCard } from '../components/UI';
 import { useAuth } from '../context/AuthContext';
-import { getSecurityState, authenticateWithPIN } from '../lib/security';
-import { loginWithPasskeyDiscoverable } from '../lib/webauthn';
 
 const { width, height } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
-  const [securityStatus, setSecurityStatus] = useState({ biometricAvailable: false, biometricEnabled: false, pinEnabled: false });
   const [hasStoredSession, setHasStoredSession] = useState(false);
   const [quickLoading, setQuickLoading] = useState(false);
-  const [passkeyLoading, setPasskeyLoading] = useState(false);
-  const [step, setStep] = useState('email');
-  const [quickPin, setQuickPin] = useState('');
-  const [hasQuickPin, setHasQuickPin] = useState(false);
-  const [hasSession, setHasSession] = useState(false);
   const { checkAuthStatus } = useAuth();
+
+  // Test accounts data
+  const testAccounts = [
+    {
+      id: '1',
+      email: 'user1@test.com',
+      name: 'Test User 1',
+      role: 'admin',
+      avatar: '👤',
+      description: 'Admin Test Account'
+    },
+    {
+      id: '2',
+      email: 'user2@test.com',
+      name: 'Test User 2',
+      role: 'user',
+      avatar: '👥',
+      description: 'User Test Account'
+    }
+  ];
 
   useEffect(() => {
     (async () => {
       try {
-        const status = await getSecurityState();
-        setSecurityStatus(status);
         const token = await secureGet('authToken');
         const user = await secureGet('userData');
         setHasStoredSession(!!token && !!user);
-        setHasSession(!!token && !!user);
-        setHasQuickPin(status.pinEnabled);
       } catch {}
     })();
   }, []);
 
-  // Dev-only auto bypass on web to speed up UI preview
-  useEffect(() => {
-    if (Platform.OS === 'web' && process.env.NODE_ENV !== 'production') {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const autoParam = params.get('auto');
-        const stored = window.localStorage.getItem('__autoBypass');
-        const shouldBypass = autoParam === '1' || stored === '1';
-        if (shouldBypass) {
-          window.localStorage.setItem('__autoBypass', '1');
-          bypassLogin();
-        }
-      } catch {}
-    }
-  }, []);
-
-  const isFormValid = useMemo(() => {
-    const emailTrimmed = email.trim();
-    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed);
-    return emailValid && password.length > 0;
-  }, [email, password]);
-
-  const isEmailValid = useMemo(() => {
-    const e = email.trim();
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-  }, [email]);
-
-  const handleLogin = async () => {
-    // Validate form data
-    const validationRules = {
-      email: [
-        { required: true, label: 'Email' },
-        { email: true }
-      ],
-      password: [
-        { required: true, label: 'Password' }
-      ]
-    };
-
-    const vErrors = validateForm({ email: email.trim(), password }, validationRules);
-    if (Object.keys(vErrors).length > 0) {
-      const firstError = Object.values(vErrors)[0];
-      setErrors(vErrors);
-      setToast({ visible: true, message: firstError, type: 'error' });
-      return;
-    } else {
-      setErrors({});
-    }
-
+  const handleTestAccountLogin = async (account) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim(),
-          password: password,
-        }),
-      });
-
-      // Safe parse: prefer JSON, fallback to text with helpful message
-      let data;
-      try {
-        const ct = response.headers.get('content-type') || '';
-        if (ct.includes('application/json')) {
-          data = await response.json();
-        } else {
-          const text = await response.text();
-          const hint = response.status === 511
-            ? 'Network authentication required by tunnel. Please use a stable HTTPS URL.'
-            : response.status === 502
-            ? 'Backend service unavailable. Please try again later.'
-            : response.status === 404
-            ? 'Login endpoint not found. Please check backend configuration.'
-            : 'Unexpected response format';
-          throw new Error(`${hint} (Status: ${response.status}, Content: ${text.slice(0, 100)})`);
-        }
-      } catch (parseError) {
-        if (parseError.message.includes('Status:')) {
-          throw parseError; // Re-throw our custom error
-        }
-        throw new Error(`Failed to parse server response: ${parseError.message}`);
-      }
-
-      if (response.ok && data.success) {
-        // Store auth data
-        await secureSet('authToken', data.token);
-        await secureSet('userData', JSON.stringify(data.user));
-        
-        console.log('[Auth] Token stored length:', data.token?.length);
-        console.log('[Auth] User email:', data.user?.email);
-        
-        // Update auth context
-        await checkAuthStatus();
-        
-        // Show success message
-        setToast({ visible: true, message: 'Login successful!', type: 'success' });
-        
-        // Navigate to dashboard
-        setTimeout(() => {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-          });
-        }, 1000);
-      } else {
-        const errorMessage = data.message || data.error || 'Login failed';
-        setToast({ visible: true, message: errorMessage, type: 'error' });
-      }
+      // Generate a mock JWT token for test accounts (no backend call needed)
+      const mockToken = `test-token-${account.id}-${Date.now()}`;
+      
+      // Create user data for the test account
+      const userData = {
+        id: account.id,
+        email: account.email,
+        name: account.name,
+        role: account.role,
+        isTestAccount: true
+      };
+      
+      // Store auth data directly without backend authentication
+      await secureSet('authToken', mockToken);
+      await secureSet('userData', JSON.stringify(userData));
+      
+      // Initialize user data with sample data if needed
+      const { initializeUserData } = await import('../lib/db.js');
+      await initializeUserData(null);
+      
+      console.log('[Auth] Test account login successful (no authentication required):', account.email);
+      
+      // Update auth context
+      await checkAuthStatus();
+      
+      // Show success message
+      setToast({ visible: true, message: `Welcome ${account.name}!`, type: 'success' });
+      
+      // Navigate to dashboard
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' }],
+        });
+      }, 1000);
+      
     } catch (error) {
-      console.error('[Auth] Login error:', error);
-      const errorMessage = error.message || 'Network error. Please check your connection.';
-      setToast({ visible: true, message: errorMessage, type: 'error' });
+      console.error('[Auth] Test account login error:', error);
+      setToast({ visible: true, message: 'Login failed. Please try again.', type: 'error' });
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleContinue = () => {
-    const e = email.trim();
-    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-    if (!valid) {
-      setErrors({ email: 'Enter a valid email' });
-      setToast({ visible: true, message: 'Enter a valid email', type: 'error' });
-      return;
-    }
-    setErrors({});
-    setStep('password');
   };
 
   const handleQuickLogin = async () => {
@@ -202,70 +120,6 @@ const LoginScreen = ({ navigation }) => {
       setToast({ visible: true, message: 'Quick login failed', type: 'error' });
     } finally {
       setQuickLoading(false);
-    }
-  };
-
-  const handleQuickPinLogin = async () => {
-    if (!quickPin) return;
-    
-    setQuickLoading(true);
-    try {
-      const success = await authenticateWithPIN(quickPin);
-      if (success) {
-        await checkAuthStatus();
-        navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-      } else {
-        setToast({ visible: true, message: 'Invalid PIN', type: 'error' });
-      }
-    } catch (error) {
-      setToast({ visible: true, message: 'PIN authentication failed', type: 'error' });
-    } finally {
-      setQuickLoading(false);
-    }
-  };
-
-  const navigateToSignup = () => {
-    navigation.navigate('Signup');
-  };
-
-  const navigateToPasswordReset = () => {
-    navigation.navigate('PasswordReset');
-  };
-
-  // Handle form submission (for web Enter key support)
-  const handleFormSubmit = (e) => {
-    if (Platform.OS === 'web' && e) {
-      e.preventDefault();
-    }
-    if (isFormValid && !loading) {
-      handleLogin();
-    }
-  };
-
-  // Temporary dev bypass login for testing
-  const bypassLogin = async () => {
-    try {
-      const mockUser = {
-        id: 'dev-bypass-user',
-        email: 'hasberrydante@gmail.com',
-        firstName: 'dante',
-        lastName: 'hasberry',
-        phoneNumber: null,
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-      };
-      const mockToken = 'dev-bypass-token';
-
-      await secureSet('authToken', mockToken);
-      await secureSet('userData', JSON.stringify(mockUser));
-
-      // Refresh AuthContext state from storage
-      await checkAuthStatus();
-
-      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-    } catch (e) {
-      console.log('[Bypass] Error:', e);
-      showErrorAlert('Bypass Failed', 'Unable to set test login.');
     }
   };
 
@@ -294,11 +148,11 @@ const LoginScreen = ({ navigation }) => {
               </LinearGradient>
             </View>
             <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to continue your journey</Text>
+            <Text style={styles.subtitle}>Select a test account to continue</Text>
           </View>
 
           {/* Quick Login Options */}
-          {hasSession && (
+          {hasStoredSession && (
             <GradientCard variant="accent" padding="medium" style={styles.quickLoginCard}>
               <Text style={styles.quickTitle}>Quick Access</Text>
               <GradientButton
@@ -308,158 +162,59 @@ const LoginScreen = ({ navigation }) => {
                 loading={quickLoading}
                 style={styles.quickButton}
               >
-                Continue as Previous User
-              </GradientButton>
-              {hasQuickPin && (
-                <View style={styles.quickPinRow}>
-                  <ModernInput
-                    variant="minimal"
-                    size="medium"
-                    placeholder="Enter PIN"
-                    value={quickPin}
-                    onChangeText={setQuickPin}
-                    secureTextEntry
-                    keyboardType="numeric"
-                    maxLength={6}
-                    style={styles.quickPinInput}
-                  />
-                  <GradientButton
-                    variant="accent"
-                    size="medium"
-                    onPress={handleQuickPinLogin}
-                    disabled={!quickPin}
-                    loading={quickLoading}
-                  >
-                    PIN
-                  </GradientButton>
+                <View style={styles.quickButtonContent}>
+                  <Ionicons name="flash" size={20} color={Colors.white} />
+                  <Text style={styles.quickButtonText}>Continue Previous Session</Text>
                 </View>
-              )}
+              </GradientButton>
             </GradientCard>
           )}
 
-          {/* Main Form */}
-          <GradientCard variant="glow" padding="large" style={styles.formCard}>
-            {step === 'email' ? (
-              <View style={styles.emailStep}>
-                <Text style={styles.stepTitle}>Enter your email</Text>
-                <ModernInput
-                  variant="glow"
-                  size="large"
-                  placeholder="Email address"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  leftIcon="mail-outline"
-                  error={errors.email}
-                />
-                <GradientButton
-                  title="Continue"
-                  variant="primary"
-                  size="large"
-                  onPress={handleContinue}
-                  disabled={loading || !email.trim()}
-                  loading={loading}
-                  style={styles.continueButton}
-                />
-              </View>
-            ) : (
-              <View style={styles.loginStep}>
-                <View style={styles.emailSummary}>
-                  <Text style={styles.emailSummaryText}>{email}</Text>
-                  <TouchableOpacity onPress={() => setStep('email')}>
-                    <Text style={styles.changeLink}>Change</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Password Login */}
-                <Text style={styles.stepTitle}>Enter your password</Text>
-                <ModernInput
-                  variant="glow"
-                  size="large"
-                  placeholder="Password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoComplete="current-password"
-                  leftIcon="lock-closed-outline"
-                  rightIcon={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                  onRightIconPress={() => setShowPassword(!showPassword)}
-                  error={errors.password}
-                />
-                
-                <GradientButton
-                  title="Sign In"
-                  variant="primary"
-                  size="large"
-                  onPress={handleLogin}
-                  disabled={loading || !isFormValid}
-                  loading={loading}
-                  style={styles.loginButton}
-                />
-              </View>
-            )}
-          </GradientCard>
-
-          {/* Forgot Password */}
-          <TouchableOpacity 
-            style={styles.forgotPassword} 
-            onPress={navigateToPasswordReset}
-          >
-            <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
-          </TouchableOpacity>
-
-          {/* Passkey Login (Web only) */}
-          {Platform.OS === 'web' && (
-            <View style={styles.passkeySection}>
+          {/* Test Accounts Selection */}
+          <GradientCard variant="primary" padding="large" style={styles.formCard}>
+            <Text style={styles.sectionTitle}>Test Accounts</Text>
+            <Text style={styles.sectionSubtitle}>Choose an account for testing</Text>
+            
+            {testAccounts.map((account) => (
               <TouchableOpacity
-                onPress={async () => {
-                  setPasskeyLoading(true);
-                  try {
-                    const resp = await loginWithPasskeyDiscoverable();
-                    if (resp && resp.token && resp.user) {
-                      await secureSet('authToken', resp.token);
-                      await secureSet('userData', JSON.stringify(resp.user));
-                      await checkAuthStatus();
-                      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-                    } else {
-                      const msg = resp?.error || 'Passkey sign-in failed';
-                      setToast({ visible: true, message: msg, type: 'error' });
-                    }
-                  } catch (e) {
-                    setToast({ visible: true, message: String(e.message || e), type: 'error' });
-                  } finally {
-                    setPasskeyLoading(false);
-                  }
-                }}
-                disabled={passkeyLoading}
-                style={styles.passkeyButton}
+                key={account.id}
+                style={styles.accountCard}
+                onPress={() => handleTestAccountLogin(account)}
+                disabled={loading}
               >
                 <LinearGradient
-                  colors={[Colors.accentSecondary, Colors.accent]}
-                  style={styles.passkeyGradient}
+                  colors={account.role === 'admin' 
+                    ? [Colors.accent, Colors.accentSecondary] 
+                    : [Colors.primary, Colors.primarySecondary]
+                  }
+                  style={styles.accountGradient}
                 >
-                  <Ionicons name="finger-print" size={20} color={Colors.white} />
-                  <Text style={styles.passkeyText}>
-                    {passkeyLoading ? 'Connecting…' : 'Use Passkey'}
-                  </Text>
+                  <View style={styles.accountContent}>
+                    <View style={styles.accountAvatar}>
+                      <Text style={styles.avatarText}>{account.avatar}</Text>
+                    </View>
+                    <View style={styles.accountInfo}>
+                      <Text style={styles.accountName}>{account.name}</Text>
+                      <Text style={styles.accountEmail}>{account.email}</Text>
+                      <Text style={styles.accountRole}>{account.description}</Text>
+                    </View>
+                    <View style={styles.accountAction}>
+                      {loading ? (
+                        <Ionicons name="hourglass" size={24} color={Colors.white} />
+                      ) : (
+                        <Ionicons name="arrow-forward" size={24} color={Colors.white} />
+                      )}
+                    </View>
+                  </View>
                 </LinearGradient>
               </TouchableOpacity>
-            </View>
-          )}
+            ))}
+          </GradientCard>
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={navigateToSignup}>
-              <LinearGradient
-                colors={[Colors.accent, Colors.accentSecondary]}
-                style={styles.signupGradient}
-              >
-                <Text style={styles.signupLink}>Sign up</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            <Text style={styles.footerText}>Testing Environment</Text>
+            <Text style={styles.footerSubtext}>No password required for test accounts</Text>
           </View>
 
           <Toast
@@ -534,114 +289,98 @@ const styles = StyleSheet.create({
   quickButton: {
     marginBottom: Colors.spacing.md,
   },
-  quickPinRow: {
+  quickButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Colors.spacing.md,
-  },
-  quickPinInput: {
-    flex: 1,
-  },
-  formCard: {
-    marginBottom: Colors.spacing.xl,
-  },
-  emailStep: {
-    alignItems: 'stretch',
-  },
-  loginStep: {
-    alignItems: 'stretch',
-  },
-  stepTitle: {
-    fontSize: Colors.typography.xl,
-    fontWeight: Colors.typography.weights.semibold,
-    color: Colors.text,
-    marginBottom: Colors.spacing.lg,
-    textAlign: 'center',
-  },
-  emailSummary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Colors.spacing.md,
-    marginBottom: Colors.spacing.lg,
-    paddingHorizontal: Colors.spacing.md,
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: Colors.borderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  emailSummaryText: {
-    fontSize: Colors.typography.md,
-    fontWeight: Colors.typography.weights.medium,
-    color: Colors.text,
-  },
-  changeLink: {
-    color: Colors.accent,
-    fontSize: Colors.typography.sm,
-    fontWeight: Colors.typography.weights.semibold,
-    paddingHorizontal: Colors.spacing.sm,
-    paddingVertical: Colors.spacing.xs,
-  },
-  continueButton: {
-    marginTop: Colors.spacing.lg,
-  },
-  loginButton: {
-    marginTop: Colors.spacing.lg,
-  },
-  forgotPassword: {
-    alignItems: 'center',
-    marginTop: Colors.spacing.lg,
-    marginBottom: Colors.spacing.xl,
-  },
-  forgotPasswordText: {
-    color: Colors.accent,
-    fontSize: Colors.typography.md,
-    fontWeight: Colors.typography.weights.medium,
-    textDecorationLine: 'underline',
-  },
-  passkeySection: {
-    alignItems: 'center',
-    marginTop: Colors.spacing.lg,
-    marginBottom: Colors.spacing.xl,
-  },
-  passkeyButton: {
-    borderRadius: Colors.borderRadius.lg,
-    overflow: 'hidden',
-    ...Colors.shadows.medium,
-  },
-  passkeyGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Colors.spacing.md,
-    paddingHorizontal: Colors.spacing.lg,
     gap: Colors.spacing.sm,
   },
-  passkeyText: {
+  quickButtonText: {
     color: Colors.white,
     fontSize: Colors.typography.md,
     fontWeight: Colors.typography.weights.semibold,
   },
-  footer: {
+  formCard: {
+    marginBottom: Colors.spacing.xl,
+  },
+  sectionTitle: {
+    fontSize: Colors.typography.xl,
+    fontWeight: Colors.typography.weights.bold,
+    color: Colors.text,
+    marginBottom: Colors.spacing.sm,
+    textAlign: 'center',
+  },
+  sectionSubtitle: {
+    fontSize: Colors.typography.md,
+    fontWeight: Colors.typography.weights.medium,
+    color: Colors.textSecondary,
+    marginBottom: Colors.spacing.lg,
+    textAlign: 'center',
+  },
+  accountCard: {
+    marginBottom: Colors.spacing.md,
+    borderRadius: Colors.borderRadius.lg,
+    overflow: 'hidden',
+    ...Colors.shadows.medium,
+  },
+  accountGradient: {
+    padding: Colors.spacing.lg,
+  },
+  accountContent: {
     flexDirection: 'row',
+    alignItems: 'center',
+  },
+  accountAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: Colors.borderRadius.round,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
     justifyContent: 'center',
+    marginRight: Colors.spacing.md,
+  },
+  avatarText: {
+    fontSize: 24,
+  },
+  accountInfo: {
+    flex: 1,
+  },
+  accountName: {
+    fontSize: Colors.typography.lg,
+    fontWeight: Colors.typography.weights.bold,
+    color: Colors.white,
+    marginBottom: Colors.spacing.xs,
+  },
+  accountEmail: {
+    fontSize: Colors.typography.sm,
+    fontWeight: Colors.typography.weights.medium,
+    color: Colors.white,
+    opacity: 0.9,
+    marginBottom: Colors.spacing.xs,
+  },
+  accountRole: {
+    fontSize: Colors.typography.xs,
+    fontWeight: Colors.typography.weights.medium,
+    color: Colors.white,
+    opacity: 0.7,
+  },
+  accountAction: {
+    marginLeft: Colors.spacing.md,
+  },
+  footer: {
     alignItems: 'center',
     marginTop: Colors.spacing.xl,
   },
   footerText: {
     color: Colors.textLight,
     fontSize: Colors.typography.md,
-    fontWeight: Colors.typography.weights.regular,
-  },
-  signupGradient: {
-    paddingHorizontal: Colors.spacing.md,
-    paddingVertical: Colors.spacing.xs,
-    borderRadius: Colors.borderRadius.sm,
-  },
-  signupLink: {
-    color: Colors.white,
-    fontSize: Colors.typography.md,
     fontWeight: Colors.typography.weights.semibold,
+    marginBottom: Colors.spacing.xs,
+  },
+  footerSubtext: {
+    color: Colors.textLight,
+    fontSize: Colors.typography.sm,
+    fontWeight: Colors.typography.weights.regular,
+    opacity: 0.7,
   },
 });
 

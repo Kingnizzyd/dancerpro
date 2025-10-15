@@ -9,14 +9,12 @@ import SignupScreen from './screens/SignupScreen';
 import PasswordReset from './screens/PasswordReset';
 import Dashboard from './screens/Dashboard';
 import { AuthProvider } from './context/AuthContext';
-import MessagingStack from './navigation/MessagingStack';
+
 import Clients from './screens/Clients';
-import Money from './screens/Money';
+import TransactionManager from './screens/TransactionManager';
 import Outfits from './screens/Outfits';
 import Venues from './screens/Venues';
-import Shifts from './screens/Shifts';
 import AIInsights from './screens/AIInsights';
-import AnalyticsScreen from './screens/AnalyticsScreen';
 import SecuritySettings from './screens/SecuritySettings';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from './constants/Colors';
@@ -36,14 +34,11 @@ function MainTabs() {
         tabBarIcon: ({ color, size }) => {
           const map = {
             Dashboard: 'home-outline',
-            Messages: 'chatbubble-outline',
             Clients: 'people-outline',
-            Money: 'cash-outline',
+            Transactions: 'card-outline',
             Outfits: 'shirt-outline',
             Venues: 'business-outline',
-            Shifts: 'time-outline',
             AI: 'sparkles-outline',
-            Analytics: 'stats-chart-outline',
             Security: 'shield-checkmark-outline',
           };
           const iconName = map[route.name] || 'ellipse-outline';
@@ -52,15 +47,11 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Dashboard" component={Dashboard} />
-      <Tab.Screen name="Messages" component={MessagingStack} />
       <Tab.Screen name="Clients" component={Clients} />
-      <Tab.Screen name="Money" component={Money} />
+      <Tab.Screen name="Transactions" component={TransactionManager} />
       <Tab.Screen name="Outfits" component={Outfits} />
       <Tab.Screen name="Venues" component={Venues} />
-      <Tab.Screen name="Shifts" component={Shifts} />
       <Tab.Screen name="AI" component={AIInsights} />
-      <Tab.Screen name="Analytics" component={AnalyticsScreen} />
-      <Tab.Screen name="Security" component={SecuritySettings} />
     </Tab.Navigator>
   );
 }

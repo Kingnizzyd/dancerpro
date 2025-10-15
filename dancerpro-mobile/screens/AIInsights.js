@@ -15,7 +15,7 @@ export default function AIInsights() {
       title: 'Peak Performance Days',
       insight: 'Your best earning days are Friday and Saturday nights',
       confidence: 92,
-      icon: 'trending-up',
+      icon: 'trending-up-outline',
       color: Colors.success
     },
     {
@@ -24,7 +24,7 @@ export default function AIInsights() {
       title: 'Outfit ROI Analysis',
       insight: 'Midnight Sparkle outfit shows 340% ROI - consider similar styles',
       confidence: 87,
-      icon: 'diamond',
+      icon: 'sparkles-outline',
       color: Colors.primary
     },
     {
@@ -33,7 +33,7 @@ export default function AIInsights() {
       title: 'Revenue Forecast',
       insight: 'Based on trends, expect $1,200-1,500 this weekend',
       confidence: 78,
-      icon: 'analytics',
+      icon: 'analytics-outline',
       color: Colors.accent
     },
     {
@@ -42,7 +42,7 @@ export default function AIInsights() {
       title: 'Client Behavior',
       insight: 'VIP clients prefer bookings 2-3 days in advance',
       confidence: 85,
-      icon: 'people',
+      icon: 'people-outline',
       color: Colors.warning
     }
   ];
@@ -72,10 +72,10 @@ export default function AIInsights() {
   ];
 
   const metrics = [
-    { label: 'AI Confidence', value: '87%', icon: 'checkmark-circle' },
-    { label: 'Predictions Made', value: '24', icon: 'bulb' },
-    { label: 'Accuracy Rate', value: '91%', icon: 'target' },
-    { label: 'Insights Generated', value: '156', icon: 'stats-chart' }
+    { label: 'AI Confidence', value: '87%', icon: 'checkmark-circle-outline' },
+    { label: 'Predictions Made', value: '24', icon: 'bulb-outline' },
+    { label: 'Accuracy Rate', value: '91%', icon: 'speedometer-outline' },
+    { label: 'Insights Generated', value: '156', icon: 'stats-chart-outline' }
   ];
 
   return (
@@ -89,14 +89,14 @@ export default function AIInsights() {
       >
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <Ionicons name="brain" size={28} color="white" />
+            <Ionicons name="analytics-outline" size={28} color="white" />
             <View style={styles.headerText}>
               <Text style={styles.headerTitle}>AI Insights</Text>
               <Text style={styles.headerSubtitle}>Intelligent performance analysis</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.refreshButton}>
-            <Ionicons name="refresh" size={20} color="white" />
+            <Ionicons name="refresh-outline" size={20} color="white" />
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -128,7 +128,7 @@ export default function AIInsights() {
       {/* AI Metrics */}
       <View style={styles.metricsContainer}>
         {metrics.map((metric, index) => (
-          <GradientCard key={index} style={styles.metricCard}>
+          <GradientCard key={index} variant="minimal" padding="small" style={styles.metricCard}>
             <View style={styles.metricContent}>
               <Ionicons name={metric.icon} size={24} color={Colors.primary} />
               <Text style={styles.metricValue}>{metric.value}</Text>
@@ -148,7 +148,7 @@ export default function AIInsights() {
         </View>
         
         {insights.map((insight) => (
-          <GradientCard key={insight.id} style={styles.insightCard}>
+          <GradientCard key={insight.id} variant="glow" padding="medium" style={styles.insightCard}>
             <View style={styles.insightHeader}>
               <View style={styles.insightIcon}>
                 <Ionicons name={insight.icon} size={20} color={insight.color} />
@@ -170,7 +170,7 @@ export default function AIInsights() {
         <Text style={styles.sectionTitle}>AI Recommendations</Text>
         
         {recommendations.map((rec) => (
-          <GradientCard key={rec.id} style={styles.recommendationCard}>
+          <GradientCard key={rec.id} variant="warm" padding="medium" style={styles.recommendationCard}>
             <View style={styles.recommendationHeader}>
               <View style={styles.recommendationContent}>
                 <Text style={styles.recommendationTitle}>{rec.title}</Text>
@@ -193,9 +193,9 @@ export default function AIInsights() {
       </View>
 
       {/* AI Learning Status */}
-      <GradientCard style={styles.learningCard}>
+      <GradientCard style={styles.learningCard} variant="accent" padding="large">
         <View style={styles.learningHeader}>
-          <Ionicons name="school" size={24} color={Colors.primary} />
+          <Ionicons name="school-outline" size={24} color={Colors.primary} />
           <Text style={styles.learningTitle}>AI Learning Progress</Text>
         </View>
         <Text style={styles.learningText}>
@@ -450,3 +450,4 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
 });
+

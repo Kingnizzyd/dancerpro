@@ -1,9 +1,17 @@
 [build]
   base = "dancerpro-mobile"
-  command = "npx expo export -p web --output-dir dist && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js && node scripts/copy-public.js"
+  command = "cd netlify/functions && npm install && cd ../.. && npx expo export -p web --output-dir dist && node scripts/process-figma-assets.js && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js && node scripts/copy-public.js"
   publish = "dist"
+  functions = "netlify/functions"
 
 [build.environment]
   # Set this in Netlify UI or as a secure env var
   EXPO_PUBLIC_BACKEND_URL = ""
   NODE_VERSION = "20"
+  JWT_SECRET = "your-jwt-secret-key-here"
+
+# SPA redirect rules for client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

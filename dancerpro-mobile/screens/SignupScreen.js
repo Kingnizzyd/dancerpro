@@ -140,7 +140,12 @@ const SignupScreen = ({ navigation }) => {
         password_confirmation: formData.password,
       };
 
-      const requestUrl = `${BACKEND_URL}/api/auth/register`;
+      // Construct the correct endpoint URL based on backend type
+      const registerEndpoint = BACKEND_URL.includes('/.netlify/functions') 
+        ? `${BACKEND_URL}/auth-register`
+        : `${BACKEND_URL}/api/auth/register`;
+
+      const requestUrl = registerEndpoint;
       console.log('🌐 Making request to:', requestUrl);
       console.log('📤 Signup data:', { ...signupData, password: '[HIDDEN]', passwordConfirmation: '[HIDDEN]' });
 

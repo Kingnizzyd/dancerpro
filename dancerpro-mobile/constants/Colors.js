@@ -1,75 +1,103 @@
 export const Colors = {
-  // Primary Brand Colors - Digital Lavender & Cyber Lime
+  // Primary Brand Colors - Sophisticated Lavender & Rose Gold
   primary: '#B19CD9', // Digital Lavender
   primaryDark: '#9B7EBD',
-  secondary: '#C7FF00', // Cyber Lime
-  secondaryDark: '#A3D900',
+  primaryLight: '#D4C4E8',
+  secondary: '#E8A87C', // Rose Gold - more appealing to target demographic
+  secondaryDark: '#D4956A',
+  secondaryLight: '#F2C4A1',
   
-  // Accent Colors
-  accent: '#FF6B9D',
-  accentSecondary: '#00E6FF',
+  // Feminine Aesthetic Extensions
+  softPink: '#F8D7E8',
+  softPinkLight: '#FFD9EC',
+  deepPurple: '#6A0DAD',
+  plum: '#5A189A',
+  metallicGold: '#D4AF37',
+  metallicRoseGold: '#E4BFB3',
+  metallicSilver: '#C0C0C0',
+  satinHighlight: '#FFF1F8',
+  
+  // Accent Colors - Modern & Feminine
+  accent: '#FF6B9D', // Coral Pink
+  accentSecondary: '#7DD3FC', // Sky Blue
+  accentTertiary: '#F59E0B', // Warm Amber
+  accentQuaternary: '#10B981', // Emerald Green
   
   // Gradient Colors for Modern Effects
   gradientPrimary: '#B19CD9',
-  gradientSecondary: '#E6B3FF', 
-  gradientTertiary: '#FFB3E6',
+  gradientSecondary: '#E8A87C', // Rose Gold gradient
+  gradientTertiary: '#FF6B9D', // Coral gradient
+  gradientQuaternary: '#7DD3FC', // Sky blue gradient
+  gradientLuxPink: '#F8D7E8',
+  gradientDeepPurple: '#6A0DAD',
+  gradientMetallicGold: '#D4AF37',
   
-  // Background Colors - Modern Dark with Colorful Accents
-  background: '#0a0a0a',
-  backgroundSecondary: '#121212',
-  surface: '#1a1a1a',
-  surfaceSecondary: '#252525',
-  surfaceAccent: '#2a1a2a', // Subtle purple tint
+  // Background Colors - Sophisticated Dark with Warm Accents
+  background: '#0F0F0F', // Deeper black for elegance
+  backgroundSecondary: '#1A1A1A', // Warmer secondary
+  surface: '#252525', // Elevated surface
+  surfaceSecondary: '#2F2F2F', // Higher elevation
+  surfaceAccent: '#2A1F2A', // Subtle lavender tint
+  surfaceWarm: '#2A2520', // Warm surface variant
   
   // Border & Divider Colors
-  border: '#333333',
-  borderLight: '#404040',
+  border: '#3A3A3A', // Softer borders
+  borderLight: '#4A4A4A',
   borderAccent: '#B19CD9',
-  divider: '#2a2a2a',
+  borderWarm: '#E8A87C', // Rose gold border
+  divider: '#333333',
   
-  // Text Colors
-  text: '#ffffff',
-  textLight: '#e0e0e0',
-  textSecondary: '#b3b3b3',
-  textAccent: '#E6B3FF',
-  textMuted: '#808080',
-  white: '#ffffff',
+  // Text Colors - Enhanced Readability & Style
+  text: '#FFFFFF',
+  textLight: '#F0F0F0', // Softer white
+  textSecondary: '#C0C0C0', // Better contrast
+  textAccent: '#D4C4E8', // Light lavender
+  textWarm: '#F2C4A1', // Light rose gold
+  textMuted: '#888888', // Improved muted text
+  textSubtle: '#666666', // Very subtle text
+  white: '#FFFFFF',
   
-  // Button Colors
+  // Button Colors - Modern & Appealing
   buttonPrimary: '#B19CD9',
-  buttonPrimaryText: '#ffffff',
-  buttonSecondary: '#2a2a2a',
-  buttonSecondaryText: '#E6B3FF',
-  buttonAccent: '#C7FF00',
-  buttonAccentText: '#000000',
+  buttonPrimaryText: '#FFFFFF',
+  buttonSecondary: '#E8A87C', // Rose gold button
+  buttonSecondaryText: '#FFFFFF',
+  buttonAccent: '#FF6B9D', // Coral button
+  buttonAccentText: '#FFFFFF',
+  buttonTertiary: '#2F2F2F', // Dark button
+  buttonTertiaryText: '#D4C4E8',
   
-  // Input Colors
-  inputBackground: '#1a1a1a',
-  inputBorder: '#333333',
+  // Input Colors - Refined & User-Friendly
+  inputBackground: '#252525', // Elevated input background
+  inputBorder: '#3A3A3A',
   inputBorderFocus: '#B19CD9',
-  inputText: '#ffffff',
-  inputPlaceholder: '#808080',
+  inputBorderWarm: '#E8A87C', // Rose gold focus
+  inputText: '#FFFFFF',
+  inputPlaceholder: '#888888',
   
-  // Status Colors - Modern & Vibrant
-  success: '#00FF88',
-  warning: '#FFB800',
-  error: '#FF4757',
-  info: '#00E6FF',
+  // Status Colors - Vibrant & Clear
+  success: '#10B981', // Emerald green
+  warning: '#F59E0B', // Warm amber
+  error: '#EF4444', // Modern red
+  info: '#7DD3FC', // Sky blue
   
-  // Special Effect Colors
+  // Special Effect Colors - Enhanced Glow
   glow: '#B19CD9',
-  shimmer: '#E6B3FF',
-  neon: '#C7FF00',
+  glowWarm: '#E8A87C', // Rose gold glow
+  shimmer: '#D4C4E8',
+  neon: '#FF6B9D', // Coral neon
   
-  // Card & Component Colors
-  cardBackground: '#1a1a1a',
-  cardBorder: '#333333',
-  cardAccent: '#2a1a2a',
+  // Card & Component Colors - Sophisticated
+  cardBackground: '#252525', // Elevated card background
+  cardBorder: '#3A3A3A',
+  cardAccent: '#2A1F2A',
+  cardWarm: '#2A2520', // Warm card variant
   
-  // Navigation Colors
+  // Navigation Colors - Modern & Clear
   tabActive: '#B19CD9',
+  tabActiveWarm: '#E8A87C', // Rose gold active
   tabInactive: '#666666',
-  tabBackground: '#121212',
+  tabBackground: '#1A1A1A',
   
   // Nested objects for spacing, typography, etc.
   // Spacing system

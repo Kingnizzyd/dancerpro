@@ -16,12 +16,41 @@ export async function initDb(_db) {
   return;
 }
 
+// Get current user ID for user-specific data storage
+function getCurrentUserId() {
+  if (!isWeb() || !window.localStorage) return null;
+  try {
+    const userData = window.localStorage.getItem('userData');
+    if (userData) {
+      const parsed = JSON.parse(userData);
+      return parsed.id || parsed.email || null;
+    }
+  } catch {}
+  return null;
+}
+
+// Create user-specific key for data storage
+function getUserKey(baseKey) {
+  const userId = getCurrentUserId();
+  return userId ? `${baseKey}_${userId}` : baseKey;
+}
+
+// In-memory cache to reduce localStorage parse/serialize overhead
+const memCache = new Map();
+
 function readLocal(key, fallback = []) {
   if (!isWeb() || !window.localStorage) return Array.isArray(fallback) ? fallback : fallback || [];
   try {
-    const raw = window.localStorage.getItem(key);
+    const userKey = getUserKey(key);
+    if (memCache.has(userKey)) {
+      const cached = memCache.get(userKey);
+      return Array.isArray(cached) ? cached : (cached ?? (Array.isArray(fallback) ? fallback : fallback || []));
+    }
+    const raw = window.localStorage.getItem(userKey);
     const parsed = raw ? JSON.parse(raw) : null;
-    return Array.isArray(parsed) ? parsed : (parsed || fallback || []);
+    const value = Array.isArray(parsed) ? parsed : (parsed || fallback || []);
+    memCache.set(userKey, value);
+    return value;
   } catch {
     return Array.isArray(fallback) ? fallback : fallback || [];
   }
@@ -29,13 +58,36 @@ function readLocal(key, fallback = []) {
 
 function writeLocal(key, value) {
   if (!isWeb() || !window.localStorage) return;
-  try { window.localStorage.setItem(key, JSON.stringify(value)); } catch {}
+  try { 
+    const userKey = getUserKey(key);
+    memCache.set(userKey, value);
+    window.localStorage.setItem(userKey, JSON.stringify(value)); 
+  } catch {}
 }
 
 function lastNDaysDateRange(days) {
   const now = new Date();
   const start = new Date(now.getTime() - (Number(days || 0) * 24 * 60 * 60 * 1000));
   return { start, end: now };
+}
+
+// Initialize user data with sample data if empty
+export async function initializeUserData(_db) {
+  const userId = getCurrentUserId();
+  if (!userId) return;
+
+  // Check if user already has data
+  const existingClients = readLocal('clients');
+  if (existingClients.length > 0) return; // User already has data
+
+  // Initialize with empty data structures
+  writeLocal('venues', []);
+  writeLocal('shifts', []);
+  writeLocal('clients', []);
+  writeLocal('outfits', []);
+  writeLocal('transactions', []);
+  
+  console.log(`[DB] Initialized empty data structures for user: ${userId}`);
 }
 
 // Transactions
@@ -267,6 +319,18 @@ export async function getClientPerformance(_db, clientId, days = 120) {
   });
   const totals = computeTransactionTotals(filtered);
   return { clientId, days, totalIncome: totals.income, totalExpense: totals.expense, net: totals.net };
+}
+
+export async function getClientTransactions(_db, clientId, days = 30) {
+  const tx = readLocal('transactions');
+  const { start, end } = lastNDaysDateRange(days);
+  return tx.filter(t => {
+    const dStr = t.date || t.createdAt || null;
+    const d = dStr ? new Date(dStr) : null;
+    if (!d) return false;
+    const within = d >= start && d <= end;
+    return within && (t.clientId === clientId);
+  }).sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
 }
 
 export async function getVenueShifts(_db, venueId, days = 120, limit = 10) {

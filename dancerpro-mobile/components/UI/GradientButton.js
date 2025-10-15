@@ -9,7 +9,7 @@ export const GradientButton = ({
   style, 
   textStyle,
   disabled = false,
-  variant = 'primary', // 'primary', 'secondary', 'accent'
+  variant = 'primary', // 'primary', 'secondary', 'accent', 'warm', 'coral'
   size = 'medium', // 'small', 'medium', 'large'
   ...props 
 }) => {
@@ -19,6 +19,10 @@ export const GradientButton = ({
         return [Colors.gradientSecondary, Colors.gradientTertiary];
       case 'accent':
         return [Colors.accent, Colors.accentSecondary];
+      case 'warm':
+        return [Colors.secondary, Colors.secondaryLight];
+      case 'coral':
+        return [Colors.gradientTertiary, Colors.gradientQuaternary];
       default:
         return [Colors.gradientPrimary, Colors.gradientSecondary];
     }
@@ -39,6 +43,13 @@ export const GradientButton = ({
       baseStyle.push(styles.buttonDisabled);
     }
 
+    // Add variant-specific shadows
+    if (variant === 'warm') {
+      baseStyle.push(styles.buttonWarm);
+    } else if (variant === 'coral') {
+      baseStyle.push(styles.buttonCoral);
+    }
+
     return baseStyle;
   };
 
@@ -53,8 +64,8 @@ export const GradientButton = ({
       baseStyle.push(styles.textMedium);
     }
 
-    if (variant === 'accent') {
-      baseStyle.push(styles.textDark);
+    if (variant === 'accent' || variant === 'warm') {
+      baseStyle.push(styles.textWhite);
     }
 
     if (disabled) {
@@ -107,6 +118,20 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
+  buttonWarm: {
+    shadowColor: Colors.glowWarm,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  buttonCoral: {
+    shadowColor: Colors.neon,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 7,
+  },
   gradient: {
     flex: 1,
     justifyContent: 'center',
@@ -127,8 +152,8 @@ const styles = StyleSheet.create({
   textLarge: {
     fontSize: Typography.fontSize.lg,
   },
-  textDark: {
-    color: Colors.background,
+  textWhite: {
+    color: Colors.white,
   },
   textDisabled: {
     opacity: 0.7,

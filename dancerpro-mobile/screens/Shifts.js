@@ -2,11 +2,12 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { shifts as sampleShifts, venues as sampleVenues, clients as sampleClients, getVenueById } from '../data/sampleData';
 import { openDb, getShiftsWithVenues, getShiftTransactionTotals, getAllVenues, getAllClients, insertShift, updateShift, deleteShift } from '../lib/db';
 import { GradientButton, ModernInput, GradientCard, Toast } from '../components/UI';
+import DateTimePicker from '../components/DateTimePicker';
 import { formatCurrency } from '../utils/formatters';
 import { Colors } from '../constants/Colors';
+import { venues as sampleVenues, clients as sampleClients } from '../data/sampleData';
 
 const { width } = Dimensions.get('window');
 
@@ -40,7 +41,7 @@ function exportShiftsCSV(rows) {
 }
 
 export default function Shifts({ route }) {
-  const [items, setItems] = useState(sampleShifts || []);
+  const [items, setItems] = useState([]);
   const [totalsByShift, setTotalsByShift] = useState(new Map());
   const [venues, setVenues] = useState([]);
   const [addOpen, setAddOpen] = useState(false);
@@ -235,7 +236,7 @@ export default function Shifts({ route }) {
     const isUpcoming = start > new Date();
 
     return (
-      <GradientCard style={styles.shiftCard}>
+      <GradientCard variant="warm" style={styles.shiftCard}>
         <View style={styles.shiftHeader}>
           <View style={styles.shiftInfo}>
             <Text style={styles.shiftVenue}>{item.venueName || 'Unknown Venue'}</Text>
@@ -323,12 +324,14 @@ export default function Shifts({ route }) {
               onPress={() => exportShiftsCSV(filteredItems)}
             >
               <Ionicons name="download" size={20} color="white" />
+              <Text style={styles.headerButtonText}>Export</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.headerButton}
               onPress={() => setAddOpen(true)}
             >
               <Ionicons name="add" size={20} color="white" />
+              <Text style={styles.headerButtonText}>Add</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -337,7 +340,7 @@ export default function Shifts({ route }) {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Weekly Stats */}
         <View style={styles.statsContainer}>
-          <GradientCard style={styles.statCard}>
+          <GradientCard variant="coral" style={styles.statCard}>
             <View style={styles.statContent}>
               <Ionicons name="calendar-outline" size={24} color={Colors.primary} />
               <Text style={styles.statValue}>{weeklyStats.shifts}</Text>
@@ -345,7 +348,7 @@ export default function Shifts({ route }) {
             </View>
           </GradientCard>
           
-          <GradientCard style={styles.statCard}>
+          <GradientCard variant="warm" style={styles.statCard}>
             <View style={styles.statContent}>
               <Ionicons name="cash-outline" size={24} color={Colors.success} />
               <Text style={styles.statValue}>{formatCurrency(weeklyStats.earnings)}</Text>
@@ -353,7 +356,7 @@ export default function Shifts({ route }) {
             </View>
           </GradientCard>
           
-          <GradientCard style={styles.statCard}>
+          <GradientCard variant="coral" style={styles.statCard}>
             <View style={styles.statContent}>
               <Ionicons name="time-outline" size={24} color={Colors.accent} />
               <Text style={styles.statValue}>{weeklyStats.hours.toFixed(1)}h</Text>
@@ -361,7 +364,7 @@ export default function Shifts({ route }) {
             </View>
           </GradientCard>
           
-          <GradientCard style={styles.statCard}>
+          <GradientCard variant="warm" style={styles.statCard}>
             <View style={styles.statContent}>
               <Ionicons name="trending-up-outline" size={24} color={Colors.warning} />
               <Text style={styles.statValue}>{formatCurrency(weeklyStats.avgPerHour)}</Text>
@@ -446,6 +449,106 @@ export default function Shifts({ route }) {
           onClose={() => setToast({ ...toast, visible: false })}
         />
       )}
+
+      {/* Add/Edit Modal */}
+      {addOpen && (
+        <View style={styles.modalOverlay}>
+          <GradientCard variant="glow" style={styles.modalSheet}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add Shift</Text>
+                <TouchableOpacity 
+                  onPress={() => setAddOpen(false)}
+                  style={styles.closeButton}
+                >
+                  <Ionicons name="close" size={24} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formSection}>
+                <ModernInput 
+                  label="Venue"
+                  placeholder="Select venue" 
+                  value={venues.find(v => v.id === venueId)?.name || ''}
+                  onChangeText={() => {}}
+                  variant="glow"
+                  editable={false}
+                />
+                
+                <DateTimePicker
+                  label="Start Time"
+                  value={startStr}
+                  onChange={setStartStr}
+                  mode="datetime"
+                />
+                
+                <DateTimePicker
+                  label="End Time"
+                  value={endStr}
+                  onChange={setEndStr}
+                  mode="datetime"
+                />
+                
+                <ModernInput 
+                  label="Earnings"
+                  placeholder="0.00" 
+                  value={earnings} 
+                  onChangeText={setEarnings} 
+                  keyboardType="numeric"
+                />
+                
+                <ModernInput 
+                  label="Notes (Optional)"
+                  placeholder="Additional details about this shift" 
+                  value={notes} 
+                  onChangeText={setNotes} 
+                />
+              </View>
+              
+              <View style={styles.modalActions}>
+                <GradientButton 
+                  title="Cancel" 
+                  variant="secondary" 
+                  onPress={() => setAddOpen(false)}
+                  style={styles.cancelButton}
+                />
+                <GradientButton 
+                  title="Add Shift" 
+                  variant="primary" 
+                  onPress={async () => {
+                    try {
+                      const db = openDb();
+                      if (!db) throw new Error('Database not available');
+                      
+                      await insertShift(db, {
+                        venueId: venueId || venues[0]?.id,
+                        clientId: clientId || null,
+                        start: startStr,
+                        end: endStr,
+                        earnings: parseFloat(earnings) || 0,
+                        notes: notes || null
+                      });
+                      
+                      // Refresh data
+                      const rows = await getShiftsWithVenues(db);
+                      setItems(rows);
+                      const map = await getShiftTransactionTotals(db);
+                      setTotalsByShift(map);
+                      
+                      setAddOpen(false);
+                      setToast({ message: 'Shift added successfully!', type: 'success', visible: true });
+                    } catch (error) {
+                      console.error('Error adding shift:', error);
+                      setToast({ message: 'Failed to add shift', type: 'error', visible: true });
+                    }
+                  }}
+                  style={styles.saveButton}
+                />
+              </View>
+            </ScrollView>
+          </GradientCard>
+        </View>
+      )}
     </View>
   );
 }
@@ -490,6 +593,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     marginLeft: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 4,
   },
   content: {
     flex: 1,
@@ -677,5 +788,56 @@ const styles = StyleSheet.create({
   },
   emptyButton: {
     paddingHorizontal: 24,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
+  modalSheet: {
+    width: width * 0.9,
+    maxHeight: '85%',
+    maxWidth: 500,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    color: Colors.text,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  formSection: {
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  cancelButton: {
+    flex: 1,
+  },
+  saveButton: {
+    flex: 1,
   },
 });

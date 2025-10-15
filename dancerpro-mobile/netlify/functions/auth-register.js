@@ -38,9 +38,12 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { name, email, password, phone } = JSON.parse(event.body);
+    const { name, firstName, lastName, email, password, phone } = JSON.parse(event.body);
     
-    if (!name || !email || !password) {
+    // Handle both name formats - single name field or firstName/lastName
+    const fullName = name || (firstName && lastName ? `${firstName} ${lastName}`.trim() : firstName || lastName || '');
+    
+    if (!fullName || !email || !password) {
       return createResponse(400, { error: 'Name, email, and password are required' });
     }
 
@@ -63,7 +66,7 @@ exports.handler = async (event, context) => {
     // Create new user
     const newUser = {
       id: uuidv4(),
-      name,
+      name: fullName,
       email,
       password: hashedPassword,
       phone: phone || null,

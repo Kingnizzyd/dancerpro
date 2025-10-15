@@ -4,6 +4,7 @@
   "description": "Netlify Functions for DancerPro backend",
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "dancerpro-mobile": "file:../..",
     "jsonwebtoken": "^9.0.2",
     "uuid": "^9.0.1"
   }

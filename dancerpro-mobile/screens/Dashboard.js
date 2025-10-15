@@ -1,30 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Platform, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
-import { lastNDaysShifts, sumEarnings, topVenueByEarnings, clients as sampleClients } from '../data/sampleData';
-import { openDb, getRecentShifts, getTopVenue, getKpiSnapshot, getAllClients, getAllDataSnapshot, importAllDataSnapshot, getTopEarningOutfits, getAllOutfitsWithEarnings } from '../lib/db';
-import { GradientCard, GradientButton, ModernInput } from '../components/UI';
+import { openDb, getKpiSnapshot, getRecentShifts, getAllClients, getAllVenues, getAllOutfits, getRecentTransactions } from '../lib/db';
+import { GradientButton, GradientCard } from '../components/UI';
 import { formatCurrency } from '../utils/formatters';
 import { Colors } from '../constants/Colors';
-import { BACKEND_URL } from '../lib/config';
-import { fetchCloudSnapshot } from '../lib/api';
+import { secureGet } from '../lib/secureStorage';
 import WebSocketService from '../services/WebSocketService';
-import { useAuth } from '../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
-export default function Dashboard() {
-  const { user } = useAuth();
-  const [recentShifts, setRecentShifts] = useState(Platform.OS === 'web' ? lastNDaysShifts(7) : []);
-  const [total, setTotal] = useState(Platform.OS === 'web' ? sumEarnings(lastNDaysShifts(7)) : 0);
-  const [top, setTop] = useState(Platform.OS === 'web' ? topVenueByEarnings(lastNDaysShifts(7)) : null);
-  const [snapshot, setSnapshot] = useState({ totals: { income: 0, expense: 0, net: 0 }, counts: {}, byClient: [], topClient: null });
-  const [clients, setClients] = useState(Platform.OS === 'web' ? (sampleClients || []) : []);
-  const [topOutfits, setTopOutfits] = useState([]);
-  const [outfitStats, setOutfitStats] = useState({ totalOutfits: 0, totalEarnings: 0, avgEarningsPerOutfit: 0, profitableOutfits: 0 });
-  const navigation = useNavigation();
+export default function Dashboard({ navigation }) {
+  const [snapshot, setSnapshot] = useState(null);
+  const [recentShifts, setRecentShifts] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [venues, setVenues] = useState([]);
+  const [outfits, setOutfits] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [days, setDays] = useState(7);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -33,50 +27,116 @@ export default function Dashboard() {
   const [healthChecking, setHealthChecking] = useState(false);
   const [lastHealthCheck, setLastHealthCheck] = useState(null);
   const [autoSynced, setAutoSynced] = useState(false);
+  const [user, setUser] = useState(null);
+
+  // Calculate total earnings from snapshot
+  const total = snapshot?.totals?.net || 0;
+
+  // Calculate top venue from snapshot or recent shifts
+  const top = useMemo(() => {
+    if (!snapshot || !recentShifts.length) return null;
+    
+    const venueTotals = new Map();
+    recentShifts.forEach(shift => {
+      const venueId = shift.venueId;
+      if (venueId) {
+        venueTotals.set(venueId, (venueTotals.get(venueId) || 0) + Number(shift.earnings || 0));
+      }
+    });
+    
+    let bestVenueId = null;
+    let bestTotal = 0;
+    venueTotals.forEach((total, venueId) => {
+      if (total > bestTotal) {
+        bestTotal = total;
+        bestVenueId = venueId;
+      }
+    });
+    
+    if (!bestVenueId) return null;
+    
+    const venue = venues.find(v => v.id === bestVenueId);
+    return {
+      venue: { name: venue?.name || '—' },
+      total: bestTotal
+    };
+  }, [snapshot, recentShifts, venues]);
+
+  // Calculate outfit statistics
+  const outfitStats = useMemo(() => {
+    const outfitsWithEarnings = outfits.map(outfit => {
+      const outfitTransactions = transactions.filter(t => t.outfitId === outfit.id);
+      const income = outfitTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const expense = outfitTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const net = income - expense;
+      return { ...outfit, net, income, expense, transactionCount: outfitTransactions.length };
+    });
+
+    const totalEarnings = outfitsWithEarnings.reduce((sum, o) => sum + (o.net || 0), 0);
+    const profitableOutfits = outfitsWithEarnings.filter(o => (o.net || 0) > 0).length;
+    const totalOutfits = outfits.length;
+    const avgEarningsPerOutfit = totalOutfits > 0 ? totalEarnings / totalOutfits : 0;
+
+    return {
+      totalEarnings,
+      profitableOutfits,
+      totalOutfits,
+      avgEarningsPerOutfit
+    };
+  }, [outfits, transactions]);
+
+  // Calculate top earning outfits
+  const topOutfits = useMemo(() => {
+    const outfitsWithEarnings = outfits.map(outfit => {
+      const outfitTransactions = transactions.filter(t => t.outfitId === outfit.id);
+      const income = outfitTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const expense = outfitTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const net = income - expense;
+      return { ...outfit, net, income, expense, transactionCount: outfitTransactions.length };
+    });
+
+    return outfitsWithEarnings
+      .sort((a, b) => (b.net || 0) - (a.net || 0))
+      .slice(0, 5);
+  }, [outfits, transactions]);
 
   const refreshDashboardData = async () => {
     setRefreshing(true);
     const db = openDb();
     if (!db) {
-      try {
-        const s = await getKpiSnapshot(db);
-        setSnapshot(s);
-      } catch (e) {
-        console.warn('Dashboard KPI load (web) failed', e);
-      }
-      setClients(sampleClients || []);
+      // No database available - set empty data
+      setSnapshot({ totals: { income: 0, expense: 0, net: 0 }, counts: {}, byClient: [], topClient: null });
+      setClients([]);
+      setRecentShifts([]);
+      setVenues([]);
+      setOutfits([]);
+      setTransactions([]);
+      setRefreshing(false);
+      return;
     }
     try {
-      const recent = await getRecentShifts(db, days);
-      const t = recent.reduce((acc, s) => acc + (s.earnings || 0), 0);
-      const topVenue = await getTopVenue(db, days);
-      setRecentShifts(recent);
-      setTotal(t);
-      setTop(topVenue ? { venue: topVenue.venue, total: topVenue.total } : null);
-
       const s = await getKpiSnapshot(db);
       setSnapshot(s);
+      const recent = await getRecentShifts(db, days);
+      setRecentShifts(recent);
       const cs = await getAllClients(db);
       setClients(cs);
-
-      const topOutfitsData = await getTopEarningOutfits(db, 5);
-      setTopOutfits(topOutfitsData);
-
-      const allOutfits = await getAllOutfitsWithEarnings(db);
-      const totalOutfits = allOutfits.length;
-      const totalEarnings = allOutfits.reduce((acc, o) => acc + (o.net || 0), 0);
-      const profitableOutfits = allOutfits.filter(o => (o.net || 0) > 0).length;
-      const avgEarningsPerOutfit = totalOutfits > 0 ? totalEarnings / totalOutfits : 0;
-
-      setOutfitStats({
-        totalOutfits,
-        totalEarnings,
-        avgEarningsPerOutfit,
-        profitableOutfits
-      });
+      const vs = await getAllVenues(db);
+      setVenues(vs);
+      const os = await getAllOutfits(db);
+      setOutfits(os);
+      const ts = await getRecentTransactions(db);
+      setTransactions(ts);
       setLastUpdated(new Date());
     } catch (e) {
-      console.warn('Dashboard DB load failed, using sample data', e);
+      console.warn('Dashboard DB load failed', e);
+      // Set empty data on error
+      setSnapshot({ totals: { income: 0, expense: 0, net: 0 }, counts: {}, byClient: [], topClient: null });
+      setClients([]);
+      setRecentShifts([]);
+      setVenues([]);
+      setOutfits([]);
+      setTransactions([]);
     } finally {
       setRefreshing(false);
     }
@@ -112,6 +172,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     checkHealth();
+    // Load user data
+    (async () => {
+      try {
+        const userData = await secureGet('userData');
+        if (userData) {
+          setUser(JSON.parse(userData));
+        }
+      } catch (error) {
+        console.warn('Failed to load user data:', error);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -342,6 +413,7 @@ export default function Dashboard() {
                   accessibilityLabel="Sync cloud data"
                 >
                   <Ionicons name="cloud-download" size={20} color={Colors.white} />
+                  <Text style={styles.buttonText}>Sync cloud data</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.refreshButton}
@@ -350,6 +422,7 @@ export default function Dashboard() {
                   accessibilityLabel="Refresh dashboard"
                 >
                   <Ionicons name="refresh" size={20} color={Colors.white} />
+                  <Text style={styles.buttonText}>Refresh dashboard</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -401,10 +474,10 @@ export default function Dashboard() {
 
         {/* KPI Cards Grid */}
         <View style={styles.kpiGrid}>
-          <GradientCard variant="accent" style={styles.kpiCard}>
+          <GradientCard variant="warm" style={styles.kpiCard}>
             <View style={styles.kpiContent}>
               <View style={styles.kpiIcon}>
-                <Ionicons name="cash" size={24} color={Colors.accent} />
+                <Ionicons name="cash" size={24} color={Colors.secondary} />
               </View>
               <View style={styles.kpiText}>
                 <Text style={styles.kpiValue}>{formatCurrency(total)}</Text>
@@ -413,10 +486,10 @@ export default function Dashboard() {
             </View>
           </GradientCard>
 
-          <GradientCard variant="glow" style={styles.kpiCard}>
+          <GradientCard variant="coral" style={styles.kpiCard}>
             <View style={styles.kpiContent}>
               <View style={styles.kpiIcon}>
-                <Ionicons name="calendar" size={24} color={Colors.secondary} />
+                <Ionicons name="calendar" size={24} color={Colors.accent} />
               </View>
               <View style={styles.kpiText}>
                 <Text style={styles.kpiValue}>{recentShifts.length}</Text>
@@ -425,10 +498,10 @@ export default function Dashboard() {
             </View>
           </GradientCard>
 
-          <GradientCard variant="default" style={styles.kpiCard}>
+          <GradientCard variant="glow" style={styles.kpiCard}>
             <View style={styles.kpiContent}>
               <View style={styles.kpiIcon}>
-                <Ionicons name="business" size={24} color={Colors.gradientPrimary} />
+                <Ionicons name="business" size={24} color={Colors.primary} />
               </View>
               <View style={styles.kpiText}>
                 <Text style={styles.kpiValue} numberOfLines={1}>
@@ -440,10 +513,10 @@ export default function Dashboard() {
             </View>
           </GradientCard>
 
-          <GradientCard variant="accent" style={styles.kpiCard}>
+          <GradientCard variant="warm" style={styles.kpiCard}>
             <View style={styles.kpiContent}>
               <View style={styles.kpiIcon}>
-                <Ionicons name="shirt" size={24} color={Colors.accentSecondary} />
+                <Ionicons name="shirt" size={24} color={Colors.secondaryLight} />
               </View>
               <View style={styles.kpiText}>
                 <Text style={styles.kpiValue}>{formatCurrency(outfitStats.totalEarnings)}</Text>
@@ -452,10 +525,10 @@ export default function Dashboard() {
             </View>
           </GradientCard>
 
-          <GradientCard variant="glow" style={styles.kpiCard}>
+          <GradientCard variant="coral" style={styles.kpiCard}>
             <View style={styles.kpiContent}>
               <View style={styles.kpiIcon}>
-                <Ionicons name="trending-up" size={24} color={Colors.success} />
+                <Ionicons name="trending-up" size={24} color={Colors.accentTertiary} />
               </View>
               <View style={styles.kpiText}>
                 <Text style={styles.kpiValue}>
@@ -466,10 +539,10 @@ export default function Dashboard() {
             </View>
           </GradientCard>
 
-          <GradientCard variant="default" style={styles.kpiCard}>
+          <GradientCard variant="glow" style={styles.kpiCard}>
             <View style={styles.kpiContent}>
               <View style={styles.kpiIcon}>
-                <Ionicons name="analytics" size={24} color={Colors.warning} />
+                <Ionicons name="analytics" size={24} color={Colors.accentQuaternary} />
               </View>
               <View style={styles.kpiText}>
                 <Text style={styles.kpiValue}>{formatCurrency(outfitStats.avgEarningsPerOutfit)}</Text>
@@ -480,12 +553,12 @@ export default function Dashboard() {
         </View>
 
         {/* Top Clients Section */}
-        <GradientCard variant="glow" style={styles.sectionCard}>
+        <GradientCard variant="warm" style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Top Clients</Text>
             <GradientButton
               title="View All"
-              variant="secondary"
+              variant="coral"
               size="small"
               onPress={() => navigation.navigate('Clients')}
             />
@@ -526,15 +599,96 @@ export default function Dashboard() {
           </View>
         </GradientCard>
 
+        {/* Earnings Trend Chart */}
+        <GradientCard variant="glow" style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Earnings Trend</Text>
+            <GradientButton
+              title="Export"
+              variant="secondary"
+              size="small"
+              onPress={handleExportAll}
+            />
+          </View>
+          <View style={styles.trendChart}>
+            {recentShifts.slice(0, 5).map((shift, idx) => {
+              const maxEarnings = Math.max(...recentShifts.slice(0, 5).map(s => Number(s.earnings || 0)));
+              const earnings = Number(shift.earnings || 0);
+              const height = maxEarnings > 0 ? Math.min(120, Math.max(8, (earnings / maxEarnings) * 120)) : 8;
+              return (
+                <View key={idx} style={styles.trendBar}>
+                  <View style={[styles.trendFill, { height }]} />
+                  <Text style={styles.trendLabel}>
+                    {new Date(shift.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </Text>
+                </View>
+              );
+            })}
+            {recentShifts.length === 0 && (
+              <View style={styles.emptyTrendChart}>
+                <Ionicons name="trending-up-outline" size={48} color={Colors.textMuted} />
+                <Text style={styles.emptyText}>No trend data yet</Text>
+                <Text style={styles.emptySubtext}>Add shifts to see earnings trends</Text>
+              </View>
+            )}
+          </View>
+        </GradientCard>
+
+        {/* Performance Breakdowns */}
+        <View style={styles.breakdownGrid}>
+          <GradientCard variant="minimal" style={styles.breakdownCard}>
+            <Text style={styles.breakdownTitle}>By Venue</Text>
+            <View style={styles.breakdownList}>
+              {venues.slice(0, 5).map((venue, i) => {
+                const venueShifts = recentShifts.filter(s => s.venueId === venue.id);
+                const venueEarnings = venueShifts.reduce((sum, s) => sum + Number(s.earnings || 0), 0);
+                return (
+                  <View key={venue.id} style={styles.breakdownRow}>
+                    <Text style={styles.breakdownName} numberOfLines={1}>{venue.name}</Text>
+                    <Text style={styles.breakdownValue}>{formatCurrency(venueEarnings)}</Text>
+                  </View>
+                );
+              })}
+              {venues.length === 0 && (
+                <View style={styles.emptyBreakdown}>
+                  <Text style={styles.emptyText}>No venue data</Text>
+                </View>
+              )}
+            </View>
+          </GradientCard>
+
+          <GradientCard variant="minimal" style={styles.breakdownCard}>
+            <Text style={styles.breakdownTitle}>By Client</Text>
+            <View style={styles.breakdownList}>
+              {snapshot?.byClient?.slice(0, 5).map((clientData, i) => {
+                const client = clients.find(c => c.id === clientData.clientId);
+                return (
+                  <View key={clientData.clientId} style={styles.breakdownRow}>
+                    <Text style={styles.breakdownName} numberOfLines={1}>
+                      {client?.name || 'Unknown Client'}
+                    </Text>
+                    <Text style={styles.breakdownValue}>{formatCurrency(clientData.net)}</Text>
+                  </View>
+                );
+              })}
+              {(!snapshot?.byClient || snapshot.byClient.length === 0) && (
+                <View style={styles.emptyBreakdown}>
+                  <Text style={styles.emptyText}>No client data</Text>
+                </View>
+              )}
+            </View>
+          </GradientCard>
+        </View>
+
         {/* Top Earning Outfits Section */}
         <GradientCard variant="accent" style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Top Earning Outfits</Text>
             <GradientButton
-              title="Analytics"
+              title="View All"
               variant="secondary"
               size="small"
-              onPress={() => navigation.navigate('Analytics')}
+              onPress={() => navigation.navigate('Outfits')}
             />
           </View>
           <View style={styles.outfitList}>
@@ -677,11 +831,22 @@ const styles = StyleSheet.create({
     padding: Colors.spacing.sm,
     borderRadius: Colors.borderRadius.md,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Colors.spacing.xs,
   },
   refreshButton: {
     padding: Colors.spacing.sm,
     borderRadius: Colors.borderRadius.md,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Colors.spacing.xs,
+  },
+  buttonText: {
+    color: Colors.white,
+    fontSize: Colors.typography.fontSize.xs,
+    fontWeight: Colors.typography.fontWeight.medium,
   },
   statusCard: {
     marginHorizontal: Colors.spacing.lg,
@@ -961,5 +1126,99 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontSize: Colors.typography.fontSize.md,
     fontWeight: Colors.typography.fontWeight.semibold,
+  },
+  trendChart: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    height: 140,
+    paddingHorizontal: Colors.spacing.sm,
+    paddingTop: Colors.spacing.md,
+  },
+  trendBar: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 2,
+  },
+  trendFill: {
+    width: '100%',
+    backgroundColor: Colors.primary,
+    borderRadius: Colors.borderRadius.sm,
+    marginBottom: Colors.spacing.sm,
+    minHeight: 8,
+  },
+  trendLabel: {
+    fontSize: Colors.typography.fontSize.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+  },
+  emptyTrendChart: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Colors.spacing.lg,
+  },
+  breakdownGrid: {
+    paddingHorizontal: Colors.spacing.lg,
+    flexDirection: 'row',
+    gap: Colors.spacing.md,
+    marginBottom: Colors.spacing.lg,
+  },
+  breakdownCard: {
+    flex: 1,
+  },
+  breakdownTitle: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.md,
+    fontWeight: Colors.typography.fontWeight.semibold,
+    marginBottom: Colors.spacing.md,
+  },
+  breakdownList: {
+    gap: Colors.spacing.sm,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Colors.spacing.xs,
+  },
+  breakdownName: {
+    color: Colors.textSecondary,
+    fontSize: Colors.typography.fontSize.sm,
+    flex: 1,
+    marginRight: Colors.spacing.sm,
+  },
+  breakdownValue: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.semibold,
+  },
+  emptyBreakdown: {
+    alignItems: 'center',
+    paddingVertical: Colors.spacing.md,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingContent: {
+    backgroundColor: Colors.cardBackground,
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    minWidth: 200,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: Colors.text,
+    marginTop: 12,
+    textAlign: 'center',
   },
 });

@@ -5,8 +5,9 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
 
-// Users file path - in Netlify Functions, use /tmp for temporary storage
-const USERS_FILE = '/tmp/users.json';
+// Users file path - check for local file first, then use /tmp for temporary storage
+const LOCAL_USERS_FILE = path.join(__dirname, '../users.json');
+const USERS_FILE = fs.existsSync(LOCAL_USERS_FILE) ? LOCAL_USERS_FILE : '/tmp/users.json';
 const SNAPSHOT_DIR = '/tmp/snapshots';
 
 function ensureDir(dirPath) {

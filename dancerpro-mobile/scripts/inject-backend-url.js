@@ -17,6 +17,14 @@ try {
 } catch (e) {
   // noop: will use whatever backendUrl is set to
 }
+
+// For Netlify builds, don't inject localhost URLs - let the config.js handle Netlify detection
+const isNetlifyBuild = process.env.NETLIFY === 'true' || process.env.CONTEXT === 'production' || process.env.CONTEXT === 'deploy-preview';
+if (isNetlifyBuild && backendUrl && backendUrl.includes('localhost')) {
+  console.log('Netlify build detected - skipping localhost backend URL injection to allow runtime detection');
+  process.exit(0);
+}
+
 if (!backendUrl) {
   console.warn('No valid backend URL resolved for injection. Skipping injection.');
   process.exit(0);

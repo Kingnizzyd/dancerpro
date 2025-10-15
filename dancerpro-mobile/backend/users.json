@@ -1,23 +1,33 @@
 [
   {
-    "id": "1759907447796",
-    "email": "testuser_api2@example.com",
-    "password": "$2b$10$ZdQa1lDFK2hVya8h9UDQx.U2GUaOsRXu13d0CxSNsyBVAD3bo.6qe",
-    "firstName": "Test",
-    "lastName": "User",
-    "phoneNumber": null,
-    "createdAt": "2025-10-08T07:10:47.796Z",
-    "lastLogin": null
+    "id": "1",
+    "email": "user1@test.com",
+    "name": "Test User 1",
+    "role": "admin",
+    "isTestAccount": true,
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "profile": {
+      "avatar": "👤",
+      "preferences": {
+        "theme": "light",
+        "notifications": true
+      }
+    }
   },
   {
-    "id": "1759907486896",
-    "email": "testuser_a8093e023f2b4a81ac81ea3a13fb7e98@example.com",
-    "password": "$2b$10$.2drkJuEMWhpvSVMckbyoOueD2lF17RNxC.wGyWAneeV00nmrdWv.",
-    "firstName": "Test",
-    "lastName": "User",
-    "phoneNumber": null,
-    "createdAt": "2025-10-08T07:11:26.896Z",
-    "lastLogin": "2025-10-08T07:11:27.463Z"
+    "id": "2", 
+    "email": "user2@test.com",
+    "name": "Test User 2",
+    "role": "user",
+    "isTestAccount": true,
+    "createdAt": "2024-01-02T00:00:00.000Z",
+    "profile": {
+      "avatar": "👥",
+      "preferences": {
+        "theme": "dark",
+        "notifications": false
+      }
+    }
   },
   {
     "id": "1759907488100",

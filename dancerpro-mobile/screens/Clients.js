@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Animated, Platform, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { clients as sampleClients, shifts as sampleShifts } from '../data/sampleData';
-import { openDb, getAllClients, insertClient, updateClient, deleteClient, getKpiSnapshot, insertTransaction, getClientPerformance, getClientShifts } from '../lib/db';
+import { openDb, getAllClients, insertClient, updateClient, deleteClient, getKpiSnapshot, getClientPerformance, getRecentShifts, getClientTransactions, insertTransaction } from '../lib/db';
 import { GradientButton, ModernInput, GradientCard, Toast } from '../components/UI';
 import { useNavigation } from '@react-navigation/native';
 import { formatCurrency } from '../utils/formatters';
@@ -13,7 +12,7 @@ const { width } = Dimensions.get('window');
 
 export default function Clients({ route }) {
   const navigation = useNavigation();
-  const [items, setItems] = useState(Platform.OS === 'web' ? sampleClients : []);
+  const [items, setItems] = useState([]);
   // Performance state
   const [expandedClientId, setExpandedClientId] = useState(null);
   const [perfData, setPerfData] = useState(null);
@@ -30,13 +29,9 @@ export default function Clients({ route }) {
   const [notes, setNotes] = useState('');
   const [toast, setToast] = useState({ message: '', type: 'info', visible: false });
   
-  // Transaction form state
-  const [showTransactionForm, setShowTransactionForm] = useState(false);
-  const [transactionType, setTransactionType] = useState('income');
-  const [transactionAmount, setTransactionAmount] = useState('');
-  const [transactionCategory, setTransactionCategory] = useState('VIP Dance');
-  const [transactionDate, setTransactionDate] = useState(new Date().toISOString().slice(0, 10));
-  const [transactionNote, setTransactionNote] = useState('');
+  // Transaction history state
+  const [clientTransactions, setClientTransactions] = useState([]);
+  const [showTransactionHistory, setShowTransactionHistory] = useState(false);
 
   useEffect(() => {
     const db = openDb();
@@ -184,64 +179,27 @@ export default function Clients({ route }) {
     setTransactionNote('');
   }
 
-  async function handleAddTransaction() {
-    const db = openDb();
-    const amount = parseFloat(transactionAmount);
-    
-    if (!transactionAmount || isNaN(amount) || amount <= 0) {
-      setToast({ message: 'Please enter a valid amount', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    
-    if (!transactionCategory.trim()) {
-      setToast({ message: 'Category is required', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    
-    const transactionData = {
-      type: transactionType,
-      amount: amount,
-      category: transactionCategory.trim(),
-      date: transactionDate,
-      note: transactionNote.trim(),
-      clientId: editId, // Link to current client being edited
-      shiftId: null,
-      outfitId: null
-    };
-    
-    try {
-      if (db) {
-        await insertTransaction(db, transactionData);
-      } else {
-        // Web fallback - could store in localStorage if needed
-        console.log('Transaction would be saved:', transactionData);
-      }
-      
-      // Reset transaction form
-      setTransactionAmount('');
-      setTransactionCategory(transactionType === 'income' ? 'VIP Dance' : 'House Fee');
-      setTransactionDate(new Date().toISOString().slice(0, 10));
-      setTransactionNote('');
-      setShowTransactionForm(false);
-      
-      setToast({ 
-        message: `${transactionType === 'income' ? 'Income' : 'Expense'} of $${amount.toFixed(2)} added for ${name}`, 
-        type: 'success', 
-        visible: true 
-      });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 3000);
-    } catch (e) {
-      console.warn('Add transaction failed', e);
-      setToast({ message: 'Failed to add transaction', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-    }
-  }
-
   function openDetail(c) {
     setDetail(c);
     setDetailOpen(true);
+    // Load transaction history for this client
+    loadClientTransactions(c.id);
+  }
+
+  async function loadClientTransactions(clientId) {
+    const db = openDb();
+    try {
+      if (db) {
+        const transactions = await getClientTransactions(db, clientId, 90); // Last 90 days
+        setClientTransactions(transactions);
+      } else {
+        // Web fallback - could load from localStorage if needed
+        setClientTransactions([]);
+      }
+    } catch (e) {
+      console.warn('Failed to load client transactions', e);
+      setClientTransactions([]);
+    }
   }
 
   async function loadPerformance(clientId, days = 90) {
@@ -253,28 +211,9 @@ export default function Clients({ route }) {
         const recent = await getClientShifts(db, clientId, days);
         setPerfRecentShifts((recent || []).slice(0, 10));
       } else {
-        // Web fallback using sample shifts
-        const filtered = (sampleShifts || []).filter(s => s.clientId === clientId);
-        const total = filtered.reduce((sum, s) => sum + (s.earnings || 0), 0);
-        const dowMap = new Map();
-        filtered.forEach(s => {
-          const d = new Date(s.start);
-          const key = d.getDay();
-          const prev = dowMap.get(key) || { total: 0, count: 0 };
-          prev.total += (s.earnings || 0);
-          prev.count += 1;
-          dowMap.set(key, prev);
-        });
-        let bestDay = null, bestAvg = 0;
-        for (const [day, { total: t, count: c }] of dowMap.entries()) {
-          const avg = c ? t / c : 0;
-          if (avg > bestAvg) { bestAvg = avg; bestDay = day; }
-        }
-        const history = filtered
-          .sort((a,b) => new Date(a.start) - new Date(b.start))
-          .map(s => ({ label: (s.start || '').slice(5,10) || '—', value: s.earnings || 0 }));
-        setPerfData({ clientId, days, shiftCount: filtered.length, totalEarnings: total, avgEarnings: filtered.length ? total/filtered.length : 0, bestDay, bestDayAvg: bestAvg, earningsHistory: history });
-        setPerfRecentShifts(filtered.sort((a,b)=> new Date(b.start) - new Date(a.start)).slice(0,10));
+        // No database available - set empty performance data
+        setPerfData({ clientId, days, shiftCount: 0, totalEarnings: 0, avgEarnings: 0, bestDay: null, bestDayAvg: 0, earningsHistory: [] });
+        setPerfRecentShifts([]);
       }
     } catch (e) {
       console.warn('Failed loading client performance', e);
@@ -425,74 +364,26 @@ export default function Clients({ route }) {
               
               {editId && (
                 <GradientCard variant="accent" style={styles.transactionSection}>
-                  <TouchableOpacity 
-                    style={styles.transactionHeader}
-                    onPress={() => setShowTransactionForm(!showTransactionForm)}
-                  >
-                    <Text style={styles.sectionTitle}>Quick Transaction</Text>
+                  <View style={styles.transactionHeader}>
+                    <Text style={styles.sectionTitle}>Client Transactions</Text>
                     <Ionicons 
-                      name={showTransactionForm ? "chevron-up" : "chevron-down"} 
+                      name="card-outline" 
                       size={20} 
                       color={Colors.accent} 
                     />
-                  </TouchableOpacity>
+                  </View>
                   
-                  {showTransactionForm && (
-                    <View style={styles.transactionForm}>
-                      <View style={styles.transactionTypeButtons}>
-                        <GradientButton
-                          title="Income"
-                          variant={transactionType === 'income' ? 'primary' : 'secondary'}
-                          size="small"
-                          onPress={() => setTransactionType('income')}
-                          style={styles.typeButton}
-                        />
-                        <GradientButton
-                          title="Expense"
-                          variant={transactionType === 'expense' ? 'primary' : 'secondary'}
-                          size="small"
-                          onPress={() => setTransactionType('expense')}
-                          style={styles.typeButton}
-                        />
-                      </View>
-                      
-                      <ModernInput 
-                        label="Amount"
-                        placeholder="0.00" 
-                        value={transactionAmount} 
-                        onChangeText={setTransactionAmount} 
-                        keyboardType="numeric" 
-                      />
-                      
-                      <ModernInput 
-                        label="Category"
-                        placeholder={transactionType === 'income' ? 'VIP Dance, Private Show' : 'House Fee, Tip Out'} 
-                        value={transactionCategory} 
-                        onChangeText={setTransactionCategory} 
-                      />
-                      
-                      <ModernInput 
-                        label="Date"
-                        placeholder="YYYY-MM-DD" 
-                        value={transactionDate} 
-                        onChangeText={setTransactionDate} 
-                      />
-                      
-                      <ModernInput 
-                        label="Note (Optional)"
-                        placeholder="Additional details" 
-                        value={transactionNote} 
-                        onChangeText={setTransactionNote} 
-                      />
-                      
-                      <GradientButton 
-                        title={`Add ${transactionType === 'income' ? 'Income' : 'Expense'}`} 
-                        variant="accent" 
-                        onPress={handleAddTransaction}
-                        style={styles.addTransactionButton}
-                      />
-                    </View>
-                  )}
+                  <View style={styles.transactionRedirect}>
+                    <Text style={styles.redirectText}>
+                      Use the centralized Transaction Manager to add income and expenses for this client.
+                    </Text>
+                    <GradientButton 
+                      title="Go to Transaction Manager" 
+                      variant="primary" 
+                      onPress={() => navigation.navigate('Transactions')}
+                      style={styles.redirectButton}
+                    />
+                  </View>
                 </GradientCard>
               )}
               
@@ -599,6 +490,49 @@ export default function Clients({ route }) {
                   );
                 } catch { return null; }
               })()}
+              
+              {/* Transaction History Section */}
+              <GradientCard variant="minimal" style={styles.transactionHistoryCard}>
+                <TouchableOpacity 
+                  style={styles.transactionHistoryHeader}
+                  onPress={() => setShowTransactionHistory(!showTransactionHistory)}
+                >
+                  <Text style={styles.sectionTitle}>Recent Transactions ({clientTransactions.length})</Text>
+                  <Ionicons 
+                    name={showTransactionHistory ? "chevron-up" : "chevron-down"} 
+                    size={20} 
+                    color={Colors.accent} 
+                  />
+                </TouchableOpacity>
+                
+                {showTransactionHistory && (
+                  <View style={styles.transactionHistoryList}>
+                    {clientTransactions.length > 0 ? (
+                      clientTransactions.slice(0, 10).map((transaction, index) => (
+                        <View key={transaction.id || index} style={styles.transactionHistoryItem}>
+                          <View style={styles.transactionHistoryLeft}>
+                            <Text style={styles.transactionHistoryCategory}>{transaction.category}</Text>
+                            <Text style={styles.transactionHistoryDate}>
+                              {new Date(transaction.date).toLocaleDateString()}
+                            </Text>
+                            {transaction.note && (
+                              <Text style={styles.transactionHistoryNote}>{transaction.note}</Text>
+                            )}
+                          </View>
+                          <Text style={[
+                            styles.transactionHistoryAmount,
+                            { color: transaction.type === 'income' ? Colors.success : Colors.error }
+                          ]}>
+                            {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                          </Text>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.emptyTransactionText}>No recent transactions</Text>
+                    )}
+                  </View>
+                )}
+              </GradientCard>
             </View>
 
             <View style={styles.modalActions}>
@@ -649,7 +583,7 @@ function ClientRow({ item, onEdit, onDelete, onView, onPerformance, expanded, pe
   
   return (
     <Animated.View style={[{ opacity: fade }]}>
-      <GradientCard variant="default" style={styles.clientCard}>
+      <GradientCard variant="warm" style={styles.clientCard}>
         <View style={styles.clientRowContent}>
           <View style={styles.clientMainInfo}>
             <View style={styles.clientHeader}>
@@ -694,14 +628,14 @@ function ClientRow({ item, onEdit, onDelete, onView, onPerformance, expanded, pe
             <View style={styles.clientActions}>
               <GradientButton
                 title={expanded ? 'Hide Performance' : 'Performance'}
-                variant="secondary"
+                variant="coral"
                 size="small"
                 onPress={onPerformance}
                 style={styles.actionButton}
               />
               <GradientButton
                 title="Analytics"
-                variant="secondary"
+                variant="warm"
                 size="small"
                 onPress={onSetAnalyticsFilter}
                 style={styles.actionButton}
@@ -709,7 +643,7 @@ function ClientRow({ item, onEdit, onDelete, onView, onPerformance, expanded, pe
             </View>
 
             {expanded && (
-              <GradientCard variant="glow" style={styles.performanceContainer}>
+              <GradientCard variant="coral" style={styles.performanceContainer}>
                 {perfData ? (
                   <>
                     <Text style={styles.performanceTitle}>Performance Overview</Text>
@@ -780,12 +714,15 @@ function ClientRow({ item, onEdit, onDelete, onView, onPerformance, expanded, pe
           <View style={styles.clientActionButtons}>
             <TouchableOpacity onPress={onView} style={styles.iconButton}>
               <Ionicons name="eye" size={20} color={Colors.primary} />
+              <Text style={styles.iconButtonText}>View</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={onEdit} style={styles.iconButton}>
               <Ionicons name="create" size={20} color={Colors.accent} />
+              <Text style={styles.iconButtonText}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={onDelete} style={styles.iconButton}>
               <Ionicons name="trash" size={20} color={Colors.error} />
+              <Text style={styles.iconButtonText}>Delete</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -963,11 +900,17 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     width: 40,
-    height: 40,
+    height: 50,
     borderRadius: Colors.borderRadius.md,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 2,
+  },
+  iconButtonText: {
+    color: Colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '500',
   },
   performanceContainer: {
     marginTop: Colors.spacing.sm,
@@ -1155,6 +1098,56 @@ const styles = StyleSheet.create({
     fontWeight: Colors.typography.fontWeight.medium,
     marginBottom: Colors.spacing.xs,
   },
+  transactionHistoryCard: {
+    marginTop: Colors.spacing.md,
+  },
+  transactionHistoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Colors.spacing.md,
+  },
+  transactionHistoryList: {
+    gap: Colors.spacing.sm,
+  },
+  transactionHistoryItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingVertical: Colors.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  transactionHistoryLeft: {
+    flex: 1,
+    marginRight: Colors.spacing.md,
+  },
+  transactionHistoryCategory: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.medium,
+  },
+  transactionHistoryDate: {
+    color: Colors.textSecondary,
+    fontSize: Colors.typography.fontSize.xs,
+    marginTop: Colors.spacing.xs,
+  },
+  transactionHistoryNote: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.xs,
+    marginTop: Colors.spacing.xs,
+    fontStyle: 'italic',
+  },
+  transactionHistoryAmount: {
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.semibold,
+  },
+  emptyTransactionText: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.sm,
+    textAlign: 'center',
+    paddingVertical: Colors.spacing.lg,
+  },
   notesText: {
     color: Colors.text,
     fontSize: Colors.typography.fontSize.sm,
@@ -1189,6 +1182,20 @@ const styles = StyleSheet.create({
   earningsValue: {
     fontSize: Colors.typography.fontSize.md,
     fontWeight: Colors.typography.fontWeight.bold,
+  },
+  transactionRedirect: {
+    padding: Colors.spacing.md,
+    alignItems: 'center',
+  },
+  redirectText: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.sm,
+    textAlign: 'center',
+    marginBottom: Colors.spacing.md,
+    lineHeight: 20,
+  },
+  redirectButton: {
+    minWidth: 200,
   },
   actionButton: {
     flex: 1,

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Image, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { outfits as sampleOutfits } from '../data/sampleData';
+import * as ImagePicker from 'expo-image-picker';
+import { persistImageAsync, removeImageAsync } from '../lib/imageStorage';
 import { openDb, getAllOutfits, getAllOutfitsWithEarnings, insertOutfit, updateOutfit, deleteOutfit, incrementWearCount, getAllVenues } from '../lib/db';
 import { GradientCard, GradientButton, ModernInput, Toast } from '../components/UI';
 import { formatCurrency } from '../utils/formatters';
@@ -11,13 +12,14 @@ import { Colors } from '../constants/Colors';
 const { width } = Dimensions.get('window');
 
 export default function Outfits() {
-  const [items, setItems] = useState(sampleOutfits || []);
+  const [items, setItems] = useState([]);
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [name, setName] = useState('');
   const [cost, setCost] = useState('');
   const [wearCount, setWearCount] = useState('');
   const [photos, setPhotos] = useState([]);
+  const [selectedImage, setSelectedImage] = useState(null);
   const [toast, setToast] = useState({ message: '', type: 'info', visible: false });
   const [venues, setVenues] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -34,8 +36,8 @@ export default function Outfits() {
           const rows = await getAllOutfits(db);
           setItems(rows);
         } catch (e2) {
-          console.warn('Load outfits failed, using fallback', e2);
-          setItems(sampleOutfits || []);
+          console.warn('Load outfits failed', e2);
+          setItems([]);
         }
       }
     })();
@@ -52,6 +54,16 @@ export default function Outfits() {
       }
     })();
   }, []);
+
+  // When editing an outfit, pre-populate photos and selected preview
+  useEffect(() => {
+    if (editItem) {
+      const existingPhotos = Array.isArray(editItem.photos) ? editItem.photos : [];
+      setPhotos(existingPhotos);
+      const firstUri = existingPhotos[0]?.uri || null;
+      setSelectedImage(firstUri);
+    }
+  }, [editItem]);
 
   const analytics = useMemo(() => {
     const outfits = items || [];
@@ -153,6 +165,166 @@ export default function Outfits() {
     }
   }
 
+  async function handleSave() {
+    if (!name.trim()) {
+      setToast({ message: 'Please enter an outfit name', type: 'error', visible: true });
+      setTimeout(() => setToast({ ...toast, visible: false }), 2500);
+      return;
+    }
+
+    try {
+      const db = openDb();
+      const payload = {
+        name: name.trim(),
+        cost: parseFloat(cost) || 0,
+        wearCount: parseInt(wearCount) || 0,
+        photos: photos || []
+      };
+
+      if (editItem) {
+        payload.id = editItem.id;
+        if (db) {
+          await updateOutfit(db, payload);
+        } else {
+          const nextList = items.map(item => 
+            item.id === editItem.id ? { ...item, ...payload } : item
+          );
+          setItems(nextList);
+        }
+        setToast({ message: 'Outfit updated', type: 'success', visible: true });
+      } else {
+        if (db) {
+          await insertOutfit(db, payload);
+        } else {
+          const newItem = { ...payload, id: `o_${Date.now()}` };
+          setItems([newItem, ...items]);
+        }
+        setToast({ message: 'Outfit added', type: 'success', visible: true });
+      }
+
+      // Refresh data
+      if (db) {
+        const rows = await getAllOutfitsWithEarnings(db);
+        setItems(rows);
+      }
+
+      setAddOpen(false);
+      resetForm();
+      setTimeout(() => setToast({ ...toast, visible: false }), 2500);
+    } catch (e) {
+      console.error('Save outfit failed:', e);
+      setToast({ message: 'Save failed', type: 'error', visible: true });
+      setTimeout(() => setToast({ ...toast, visible: false }), 2500);
+    }
+  }
+
+  function resetForm() {
+    setName('');
+    setCost('');
+    setWearCount('');
+    setPhotos([]);
+    setSelectedImage(null);
+    setEditItem(null);
+  }
+
+  const requestPermissions = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Sorry, we need camera roll permissions to select images.');
+      return false;
+    }
+    return true;
+  };
+
+  const requestCameraPermissions = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Sorry, we need camera permissions to take photos.');
+        return false;
+      }
+      return true;
+    } catch (e) {
+      // On web, this may throw or be unnecessary; fallback to gallery
+      console.warn('Camera permission error, falling back to gallery:', e);
+      return false;
+    }
+  };
+
+  const showImagePicker = () => {
+    Alert.alert(
+      'Select Image',
+      'Choose how you want to add an image for this outfit',
+      [
+        { text: 'Camera', onPress: takePhoto },
+        { text: 'Gallery', onPress: pickImage },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const takePhoto = async () => {
+    const hasPermission = await requestCameraPermissions();
+    if (!hasPermission) {
+      // Fallback to gallery on web/desktop if camera not available
+      if (Platform.OS === 'web') {
+        return await pickImage();
+      }
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false, // preserve original quality
+      quality: 1,
+      base64: Platform.OS === 'web',
+    });
+
+    if (!result.canceled && result.assets && result.assets[0]) {
+      try {
+        const photo = await persistImageAsync(result.assets[0]);
+        setPhotos([photo]);
+        setSelectedImage(photo.uri);
+      } catch (e) {
+        console.warn('Persist camera image failed:', e);
+        setSelectedImage(result.assets[0].uri);
+      }
+    }
+  };
+
+  const pickImage = async () => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 1,
+      base64: Platform.OS === 'web',
+    });
+
+    if (!result.canceled && result.assets && result.assets[0]) {
+      try {
+        const photo = await persistImageAsync(result.assets[0]);
+        setPhotos([photo]);
+        setSelectedImage(photo.uri);
+      } catch (e) {
+        console.warn('Persist picked image failed:', e);
+        setSelectedImage(result.assets[0].uri);
+      }
+    }
+  };
+
+  const removeImage = async () => {
+    try {
+      if (photos && photos[0]) {
+        await removeImageAsync(photos[0]);
+      }
+    } catch {}
+    setPhotos([]);
+    setSelectedImage(null);
+  };
+
   function renderOutfitCard(outfit) {
     const roi = outfit.cost > 0 ? ((outfit.net - outfit.cost) / outfit.cost) * 100 : 0;
     const profitPerWear = outfit.wearCount > 0 ? outfit.net / outfit.wearCount : 0;
@@ -160,6 +332,9 @@ export default function Outfits() {
 
     return (
       <GradientCard key={outfit.id} style={styles.outfitCard}>
+        {outfit?.photos && outfit.photos[0]?.uri ? (
+          <Image source={{ uri: outfit.photos[0].uri }} style={styles.outfitPhoto} />
+        ) : null}
         <View style={styles.outfitHeader}>
           <View style={styles.outfitInfo}>
             <Text style={styles.outfitName}>{outfit.name || 'Unnamed Outfit'}</Text>
@@ -382,6 +557,89 @@ export default function Outfits() {
           type={toast.type}
           onClose={() => setToast({ ...toast, visible: false })}
         />
+      )}
+
+      {/* Add/Edit Modal */}
+      {addOpen && (
+        <View style={styles.modalOverlay}>
+          <GradientCard variant="glow" style={styles.modalSheet}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{editItem ? 'Edit Outfit' : 'Add Outfit'}</Text>
+                <TouchableOpacity 
+                  onPress={() => { setAddOpen(false); resetForm(); }}
+                  style={styles.closeButton}
+                >
+                  <Ionicons name="close" size={24} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formSection}>
+                <ModernInput 
+                  label="Outfit Name"
+                  placeholder="Enter outfit name" 
+                  value={name} 
+                  onChangeText={setName}
+                  variant="glow"
+                />
+                <ModernInput 
+                  label="Cost"
+                  placeholder="Enter outfit cost (e.g. 150)" 
+                  value={cost} 
+                  onChangeText={setCost} 
+                  keyboardType="numeric"
+                />
+                <ModernInput 
+                  label="Initial Wear Count"
+                  placeholder="How many times worn (e.g. 0)" 
+                  value={wearCount} 
+                  onChangeText={setWearCount} 
+                  keyboardType="numeric"
+                />
+                
+                {/* Image Selection Section */}
+                <View style={styles.imageSection}>
+                  <Text style={styles.imageSectionLabel}>Outfit Photo</Text>
+                  {selectedImage ? (
+                    <View style={styles.imageContainer}>
+                      <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
+                      <TouchableOpacity 
+                        style={styles.removeImageButton}
+                        onPress={removeImage}
+                      >
+                        <Ionicons name="close-circle" size={24} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity 
+                      style={styles.imagePickerButton}
+                      onPress={showImagePicker}
+                    >
+                      <Ionicons name="camera" size={32} color={Colors.primary} />
+                      <Text style={styles.imagePickerText}>Add Photo</Text>
+                      <Text style={styles.imagePickerSubtext}>Camera or Gallery</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.modalActions}>
+                <GradientButton 
+                  title="Cancel" 
+                  variant="secondary" 
+                  onPress={() => { setAddOpen(false); resetForm(); }}
+                  style={styles.cancelButton}
+                />
+                <GradientButton 
+                  title={editItem ? 'Save Changes' : 'Add Outfit'} 
+                  variant="primary" 
+                  onPress={handleSave}
+                  style={styles.saveButton}
+                />
+              </View>
+            </ScrollView>
+          </GradientCard>
+        </View>
       )}
     </View>
   );
@@ -631,5 +889,105 @@ const styles = StyleSheet.create({
   },
   emptyButton: {
     paddingHorizontal: 24,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalSheet: {
+    width: '90%',
+    maxHeight: '80%',
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  formSection: {
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+  },
+  saveButton: {
+    flex: 1,
+  },
+  // Image selection styles
+  imageSection: {
+    marginTop: 16,
+  },
+  imageSectionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  imageContainer: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  selectedImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+  },
+  outfitPhoto: {
+    width: '100%',
+    height: 160,
+    borderRadius: 12,
+    marginBottom: 12,
+    backgroundColor: Colors.surface,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+    padding: 4,
+  },
+  imagePickerButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 2,
+    borderColor: Colors.primary + '40',
+    borderStyle: 'dashed',
+  },
+  imagePickerText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.primary,
+    marginTop: 8,
+  },
+  imagePickerSubtext: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 4,
   },
 });

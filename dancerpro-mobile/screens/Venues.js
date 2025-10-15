@@ -1,16 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Animated, Platform, Alert, Dimensions } from 'react-native';
+import React, { useEffect, useState, useMemo, memo, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, Animated, Platform, Alert, Dimensions, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { venues as sampleVenues } from '../data/sampleData';
-import { openDb, getAllVenues, insertVenue, updateVenue, deleteVenue, insertTransaction, getAllClients, getVenuePerformance, getVenueShifts } from '../lib/db';
+import { openDb, getAllVenues, insertVenue, updateVenue, deleteVenue, insertTransaction, getAllClients, getVenuePerformance, getVenueShifts, getShiftsWithVenues, getShiftTransactionTotals, insertShift, updateShift, deleteShift } from '../lib/db';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GradientButton, ModernInput, GradientCard, Toast } from '../components/UI';
+import DateTimePicker from '../components/DateTimePicker';
+import { formatCurrency } from '../utils/formatters';
 import { Colors } from '../constants/Colors';
+import { shifts as sampleShifts, venues as sampleVenues, clients as sampleClients } from '../data/sampleData';
 
 const { width } = Dimensions.get('window');
 
 export default function Venues() {
-  const [items, setItems] = useState(Platform.OS === 'web' ? sampleVenues : []);
+  const [items, setItems] = useState([]);
   const [addOpen, setAddOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [name, setName] = useState('');
@@ -21,13 +23,6 @@ export default function Venues() {
   // Quick transaction entry state
   const [showQuickTransaction, setShowQuickTransaction] = useState(false);
   const [selectedVenueId, setSelectedVenueId] = useState(null);
-  const [transactionType, setTransactionType] = useState('income');
-  const [transactionAmount, setTransactionAmount] = useState('');
-  const [transactionCategory, setTransactionCategory] = useState('VIP Dance');
-  const [transactionDate, setTransactionDate] = useState(new Date().toISOString().slice(0, 10));
-  const [transactionNote, setTransactionNote] = useState('');
-  const [clientOptions, setClientOptions] = useState([]);
-  const [selectedClientId, setSelectedClientId] = useState(null);
 
   // Venue performance state
   const [perfForId, setPerfForId] = useState(null);
@@ -35,9 +30,36 @@ export default function Venues() {
   const [perfData, setPerfData] = useState(null);
   const [perfRecentShifts, setPerfRecentShifts] = useState([]);
 
+  // Shift management state
+  const [shifts, setShifts] = useState([]);
+  const [totalsByShift, setTotalsByShift] = useState(new Map());
+  const [showShiftForm, setShowShiftForm] = useState(false);
+  const [editingShift, setEditingShift] = useState(null);
+  const [shiftVenueId, setShiftVenueId] = useState('');
+  const [shiftClientId, setShiftClientId] = useState('');
+  const [shiftEarnings, setShiftEarnings] = useState('');
+  const [shiftNotes, setShiftNotes] = useState('');
+  const [shiftStartStr, setShiftStartStr] = useState(new Date().toISOString());
+  const [shiftEndStr, setShiftEndStr] = useState(new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString());
+  const [activeTab, setActiveTab] = useState('venues'); // 'venues' or 'shifts'
+  const [clientOptions, setClientOptions] = useState([]);
+  
+  const clientsById = useMemo(() => {
+    const map = new Map();
+    (clientOptions || []).forEach(c => map.set(c.id, c));
+    return map;
+  }, [clientOptions]);
+
+  const venuesById = useMemo(() => {
+    const map = new Map();
+    (items || []).forEach(v => map.set(v.id, v));
+    return map;
+  }, [items]);
+
   useEffect(() => {
     loadVenues();
     loadClients();
+    loadShifts();
   }, []);
 
   // Load persisted venues on web
@@ -48,6 +70,19 @@ export default function Venues() {
         try {
           const saved = JSON.parse(raw);
           if (Array.isArray(saved)) setItems(saved);
+        } catch {}
+      }
+    }
+  }, []);
+
+  // Load persisted shifts on web
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = window.localStorage.getItem('shifts');
+      if (raw) {
+        try {
+          const saved = JSON.parse(raw);
+          if (Array.isArray(saved)) setShifts(saved);
         } catch {}
       }
     }
@@ -87,7 +122,35 @@ export default function Venues() {
     }
   }
 
-  async function loadPerformance(venueId) {
+  async function loadShifts() {
+    const db = openDb();
+    if (!db) {
+      // Web fallback - use sample data
+      setShifts(sampleShifts);
+      return;
+    }
+    try {
+      const rows = await getShiftsWithVenues(db);
+      setShifts(rows);
+      
+      // Load transaction totals for each shift
+      const totalsMap = new Map();
+      for (const shift of rows) {
+        try {
+          const totals = await getShiftTransactionTotals(db, shift.id);
+          totalsMap.set(shift.id, totals);
+        } catch (e) {
+          console.warn('Failed to load totals for shift', shift.id, e);
+        }
+      }
+      setTotalsByShift(totalsMap);
+    } catch (e) {
+      console.warn('Shifts DB load failed, using sample data', e);
+      setShifts(sampleShifts);
+    }
+  }
+
+  const loadPerformance = useCallback(async (venueId) => {
     if (perfForId === venueId && perfData) {
       // toggle off
       setPerfForId(null);
@@ -107,9 +170,7 @@ export default function Venues() {
       } else {
         // Web fallback using localStorage or sample data
         const rawShifts = JSON.parse(localStorage.getItem('shifts') || '[]');
-        const allShifts = Array.isArray(rawShifts) && rawShifts.length ? rawShifts : (
-          (typeof window !== 'undefined') ? (window.sampleShifts || []) : []
-        );
+        const allShifts = Array.isArray(rawShifts) && rawShifts.length ? rawShifts : sampleShifts;
         const filtered = allShifts.filter(s => s.venueId === venueId);
         let total = 0;
         const byDow = new Map();
@@ -143,7 +204,7 @@ export default function Venues() {
     } finally {
       setPerfLoading(false);
     }
-  }
+  }, [perfForId, perfData]);
 
   function setPreferredVenueFilter(venueId) {
     try {
@@ -155,90 +216,19 @@ export default function Venues() {
     } catch {}
   }
 
-  function resetForm() {
+  const resetForm = useCallback(() => {
     setEditId(null);
     setName('');
     setLocation('');
     setAvgEarnings('');
-  }
+  }, []);
 
-  function resetTransactionForm() {
-    setTransactionAmount('');
-    setTransactionCategory(transactionType === 'income' ? 'VIP Dance' : 'House Fee');
-    setTransactionDate(new Date().toISOString().slice(0, 10));
-    setTransactionNote('');
-    setSelectedClientId(null);
-    setSelectedVenueId(null);
-    setShowQuickTransaction(false);
-  }
-
-  function openQuickTransaction(venueId) {
+  const openQuickTransaction = useCallback((venueId) => {
     setSelectedVenueId(venueId);
-    setTransactionCategory(transactionType === 'income' ? 'VIP Dance' : 'House Fee');
     setShowQuickTransaction(true);
-  }
+  }, []);
 
-  async function handleQuickTransaction() {
-    const db = openDb();
-    const amount = parseFloat(transactionAmount);
-    
-    if (!transactionAmount || isNaN(amount) || amount <= 0) {
-      setToast({ message: 'Please enter a valid amount', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    
-    if (!transactionCategory.trim()) {
-      setToast({ message: 'Category is required', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      return;
-    }
-    
-    const venue = items.find(v => v.id === selectedVenueId);
-    const transactionData = {
-      type: transactionType,
-      amount: amount,
-      category: transactionCategory.trim(),
-      date: transactionDate,
-      note: transactionNote.trim() + (venue ? ` (Venue: ${venue.name})` : ''),
-      venueId: selectedVenueId || null,
-      clientId: selectedClientId || null,
-      shiftId: null, // No shift since this is for missed shift data
-      outfitId: null
-    };
-    
-    try {
-      if (db) {
-        await insertTransaction(db, transactionData);
-      } else {
-        // Web fallback - store in localStorage
-        const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
-        const newTransaction = {
-          id: `t_${Date.now()}`,
-          ...transactionData,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        transactions.unshift(newTransaction);
-        localStorage.setItem('transactions', JSON.stringify(transactions));
-      }
-      
-      resetTransactionForm();
-      setToast({ 
-        message: `${transactionType === 'income' ? 'Income' : 'Expense'} of $${amount.toFixed(2)} added successfully`, 
-        type: 'success', 
-        visible: true 
-      });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-      
-    } catch (error) {
-      console.error('Error adding transaction:', error);
-      setToast({ message: 'Failed to add transaction', type: 'error', visible: true });
-      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
-    }
-  }
-
-  async function handleSave() {
+  const handleSave = useCallback(async () => {
     const db = openDb();
     const earnings = Number(avgEarnings || 0);
     
@@ -304,17 +294,17 @@ export default function Venues() {
       setToast({ message: error.message || 'Failed to save venue', type: 'error', visible: true });
       setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
     }
-  }
+  }, [editId, name, location, avgEarnings, items]);
 
-  function handleEdit(venue) {
+  const handleEdit = useCallback((venue) => {
     setEditId(venue.id);
     setName(venue.name);
     setLocation(venue.location || '');
     setAvgEarnings(venue.avgEarnings?.toString() || '');
     setAddOpen(true);
-  }
+  }, []);
 
-  async function handleDelete(venue) {
+  const handleDelete = useCallback(async (venue) => {
     Alert.alert(
       'Delete Venue',
       `Are you sure you want to delete "${venue.name}"? This action cannot be undone.`,
@@ -348,7 +338,7 @@ export default function Venues() {
         }
       ]
     );
-  }
+  }, [items]);
 
   function VenueRow({ item }) {
     const fade = React.useRef(new Animated.Value(0)).current;
@@ -358,11 +348,11 @@ export default function Venues() {
 
     return (
       <Animated.View style={{ opacity: fade }}>
-        <GradientCard variant="default" style={styles.rowCard}>
+        <GradientCard variant="minimal" padding="medium" style={styles.rowCard}>
           <View style={styles.venueInfo}>
             <View style={styles.venueHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="business" size={18} color={Colors.accent} />
+                <Ionicons name="business-outline" size={18} color={Colors.accent} />
                 <Text style={styles.venueName}>{item.name}</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -406,14 +396,14 @@ export default function Venues() {
           </View>
 
           {perfForId === item.id && (
-            <GradientCard variant="glow" style={styles.performanceCard}>
+            <GradientCard variant="glow" padding="medium" style={styles.performanceCard}>
               {perfLoading ? (
                 <Text style={styles.perfLoading}>Loading performance…</Text>
               ) : perfData ? (
                 <View>
                   {/* Enhanced Analytics Cards */}
                   <View style={styles.analyticsCardsContainer}>
-                    <GradientCard variant="subtle" style={styles.analyticsCard}>
+                    <GradientCard variant="minimal" padding="small" style={styles.analyticsCard}>
                       <View style={styles.analyticsCardHeader}>
                         <Text style={styles.analyticsCardIcon}>📊</Text>
                         <Text style={styles.analyticsCardTitle}>Performance</Text>
@@ -430,7 +420,7 @@ export default function Venues() {
                       </View>
                     </GradientCard>
 
-                    <GradientCard variant="subtle" style={styles.analyticsCard}>
+                    <GradientCard variant="minimal" padding="small" style={styles.analyticsCard}>
                       <View style={styles.analyticsCardHeader}>
                         <Text style={styles.analyticsCardIcon}>💰</Text>
                         <Text style={styles.analyticsCardTitle}>Averages</Text>
@@ -472,7 +462,7 @@ export default function Venues() {
                       </View>
                     ))
                   ) : (
-                    <Text style={styles.perfEmpty}>No recent shifts</Text>
+                    <Text style={styles.perfEmpty}>No performance data</Text>
                   )}
                 </View>
               ) : (
@@ -485,79 +475,397 @@ export default function Venues() {
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Venues</Text>
-        <GradientButton
-          title="Add Venue"
-          onPress={() => {
-            resetForm();
-            setAddOpen(true);
-          }}
-          variant="primary"
-          style={styles.addButton}
-        />
-      </View>
+  const MemoVenueRow = memo(VenueRow);
+  // ShiftCard component
+  function ShiftCard({ item }) {
+    const fade = React.useRef(new Animated.Value(0)).current;
+    React.useEffect(() => {
+      Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    }, []);
 
-      {addOpen && (
-        <View style={styles.form}>
-          <Text style={styles.formTitle}>
-            {editId ? 'Edit Venue' : 'Add New Venue'}
-          </Text>
-          <ModernInput
-            label="Venue Name"
-            value={name}
-            onChangeText={setName}
-            placeholder="Enter venue name"
-            style={styles.input}
-          />
-          <ModernInput
-            label="Location"
-            value={location}
-            onChangeText={setLocation}
-            placeholder="Enter location (optional)"
-            style={styles.input}
-          />
-          <ModernInput
-            label="Average Earnings"
-            value={avgEarnings}
-            onChangeText={setAvgEarnings}
-            placeholder="Enter average earnings"
-            keyboardType="numeric"
-            style={styles.input}
-          />
-          <View style={styles.formActions}>
+    const venue = venuesById.get(item.venueId);
+    const client = clientsById.get(item.clientId);
+    const startDate = new Date(item.startTime);
+    const endDate = new Date(item.endTime);
+    const duration = Math.round((endDate - startDate) / (1000 * 60 * 60 * 100)) / 10; // hours with 1 decimal
+
+    return (
+      <Animated.View style={{ opacity: fade }}>
+        <GradientCard variant="minimal" padding="medium" style={styles.rowCard}>
+          <View style={styles.shiftInfo}>
+            <View style={styles.shiftHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="time-outline" size={18} color={Colors.accent} />
+                <Text style={styles.shiftVenue}>{venue?.name || 'Unknown Venue'}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="cash-outline" size={16} color={Colors.success} />
+                <Text style={styles.shiftEarnings}>${formatCurrency(item.earnings || 0)}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.shiftDetails}>
+              <View style={styles.shiftDetailRow}>
+                <Ionicons name="calendar-outline" size={14} color={Colors.textSecondary} />
+                <Text style={styles.shiftDetailText}>
+                  {startDate.toLocaleDateString()} • {startDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {endDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                </Text>
+              </View>
+              
+              {client && (
+                <View style={styles.shiftDetailRow}>
+                  <Ionicons name="person-outline" size={14} color={Colors.textSecondary} />
+                  <Text style={styles.shiftDetailText}>{client.name}</Text>
+                </View>
+              )}
+              
+              <View style={styles.shiftDetailRow}>
+                <Ionicons name="hourglass-outline" size={14} color={Colors.textSecondary} />
+                <Text style={styles.shiftDetailText}>{duration}h • ${(item.earnings / duration || 0).toFixed(2)}/hr</Text>
+              </View>
+              
+              {item.notes && (
+                <View style={styles.shiftDetailRow}>
+                  <Ionicons name="document-text-outline" size={14} color={Colors.textSecondary} />
+                  <Text style={styles.shiftDetailText}>{item.notes}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.actions}>
             <GradientButton
-              title="Cancel"
-              onPress={() => {
-                resetForm();
-                setAddOpen(false);
-              }}
+              title="Edit"
+              onPress={() => openShiftForm(item)}
               variant="secondary"
-              style={styles.formButton}
+              style={styles.actionButton}
             />
             <GradientButton
-              title={editId ? 'Update' : 'Add'}
-              onPress={handleSave}
-              variant="primary"
-              style={styles.formButton}
+              title="Delete"
+              onPress={() => handleDeleteShift(item)}
+              variant="secondary"
+              style={styles.actionButton}
             />
           </View>
-        </View>
-      )}
+        </GradientCard>
+      </Animated.View>
+    );
+  }
+  const MemoShiftCard = memo(ShiftCard);
 
-      {showQuickTransaction && (
-        <GradientCard variant="glow" style={styles.transactionModal}>
+  const renderVenueItem = useCallback(({ item }) => (
+    <MemoVenueRow
+      item={item}
+      perfForId={perfForId}
+      perfLoading={perfLoading}
+      perfData={perfData}
+      perfRecentShifts={perfRecentShifts}
+      openQuickTransaction={openQuickTransaction}
+      loadPerformance={loadPerformance}
+      handleEdit={handleEdit}
+      handleDelete={handleDelete}
+    />
+  ), [perfForId, perfLoading, perfData, perfRecentShifts, openQuickTransaction, loadPerformance, handleEdit, handleDelete]);
+
+  // Shift management functions
+  function resetShiftForm() {
+    setShiftVenueId('');
+    setShiftClientId('');
+    setShiftEarnings('');
+    setShiftNotes('');
+    setShiftStartStr(new Date().toISOString());
+    setShiftEndStr(new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString());
+    setEditingShift(null);
+  }
+
+  const openShiftForm = useCallback((shift = null) => {
+    if (shift) {
+      setEditingShift(shift);
+      setShiftVenueId(shift.venueId || '');
+      setShiftClientId(shift.clientId || '');
+      setShiftEarnings(shift.earnings?.toString() || '');
+      setShiftNotes(shift.notes || '');
+      setShiftStartStr(shift.startTime || new Date().toISOString());
+      setShiftEndStr(shift.endTime || new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString());
+    } else {
+      resetShiftForm();
+    }
+    setShowShiftForm(true);
+  }, [resetShiftForm]);
+
+  async function handleSaveShift() {
+    if (!shiftVenueId) {
+      setToast({ message: 'Please select a venue', type: 'error', visible: true });
+      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
+      return;
+    }
+
+    const shiftData = {
+      venueId: shiftVenueId,
+      clientId: shiftClientId || null,
+      startTime: shiftStartStr,
+      endTime: shiftEndStr,
+      earnings: parseFloat(shiftEarnings) || 0,
+      notes: shiftNotes,
+    };
+
+    try {
+      const db = openDb();
+      if (db) {
+        if (editingShift) {
+          await updateShift(db, editingShift.id, shiftData);
+        } else {
+          await insertShift(db, shiftData);
+        }
+      } else {
+        // Web fallback
+        const rawShifts = JSON.parse(localStorage.getItem('shifts') || '[]');
+        const existingShifts = Array.isArray(rawShifts) ? rawShifts : [];
+        
+        if (editingShift) {
+          const index = existingShifts.findIndex(s => s.id === editingShift.id);
+          if (index >= 0) {
+            existingShifts[index] = { ...existingShifts[index], ...shiftData };
+          }
+        } else {
+          const newShift = {
+            id: Date.now().toString(),
+            ...shiftData,
+            createdAt: new Date().toISOString(),
+          };
+          existingShifts.push(newShift);
+        }
+        
+        localStorage.setItem('shifts', JSON.stringify(existingShifts));
+      }
+
+      await loadShifts();
+      setShowShiftForm(false);
+      resetShiftForm();
+      setToast({ 
+        message: editingShift ? 'Shift updated successfully' : 'Shift created successfully', 
+        type: 'success', 
+        visible: true 
+      });
+      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
+    } catch (error) {
+      console.error('Error saving shift:', error);
+      setToast({ message: error.message || 'Failed to save shift', type: 'error', visible: true });
+      setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
+    }
+  }
+
+  const handleDeleteShift = useCallback(async (shift) => {
+    Alert.alert(
+      'Delete Shift',
+      'Are you sure you want to delete this shift? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const db = openDb();
+              if (db) {
+                await deleteShift(db, shift.id);
+              } else {
+                // Web fallback
+                const rawShifts = JSON.parse(localStorage.getItem('shifts') || '[]');
+                const existingShifts = Array.isArray(rawShifts) ? rawShifts : [];
+                const filtered = existingShifts.filter(s => s.id !== shift.id);
+                localStorage.setItem('shifts', JSON.stringify(filtered));
+              }
+              
+              await loadShifts();
+              setToast({ message: 'Shift deleted successfully', type: 'success', visible: true });
+              setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
+            } catch (error) {
+              console.error('Error deleting shift:', error);
+              setToast({ message: error.message || 'Failed to delete shift', type: 'error', visible: true });
+              setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
+            }
+          }
+        }
+      ]
+    );
+  }, [loadShifts]);
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#1a1a2e', '#16213e', '#0f3460']}
+        style={styles.gradient}
+      >
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Header with Tab Switcher */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Venues & Shifts</Text>
+            <View style={styles.tabSwitcher}>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'venues' && styles.activeTabButton]}
+                onPress={() => setActiveTab('venues')}
+              >
+                <Ionicons 
+                  name="business" 
+                  size={16} 
+                  color={activeTab === 'venues' ? '#fff' : Colors.textSecondary} 
+                />
+                <Text style={[styles.tabButtonText, activeTab === 'venues' && styles.activeTabButtonText]}>
+                  Venues
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'shifts' && styles.activeTabButton]}
+                onPress={() => setActiveTab('shifts')}
+              >
+                <Ionicons 
+                  name="time" 
+                  size={16} 
+                  color={activeTab === 'shifts' ? '#fff' : Colors.textSecondary} 
+                />
+                <Text style={[styles.tabButtonText, activeTab === 'shifts' && styles.activeTabButtonText]}>
+                  Shifts
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <GradientButton
+              title={activeTab === 'venues' ? 'Add Venue' : 'Start Shift'}
+              onPress={() => {
+                if (activeTab === 'venues') {
+                  resetForm();
+                  setAddOpen(true);
+                } else {
+                  openShiftForm();
+                }
+              }}
+              variant="primary"
+              style={styles.addButton}
+            />
+          </View>
+
+          {/* Venues Tab Content */}
+          {activeTab === 'venues' && (
+            <>
+              {addOpen && (
+                <View style={styles.form}>
+                  <Text style={styles.formTitle}>
+                    {editId ? 'Edit Venue' : 'Add New Venue'}
+                  </Text>
+                  <ModernInput
+                    label="Venue Name"
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Enter venue name"
+                    style={styles.input}
+                  />
+                  <ModernInput
+                    label="Location"
+                    value={location}
+                    onChangeText={setLocation}
+                    placeholder="Enter location (optional)"
+                    style={styles.input}
+                  />
+                  <ModernInput
+                    label="Average Earnings"
+                    value={avgEarnings}
+                    onChangeText={setAvgEarnings}
+                    placeholder="Enter average earnings"
+                    keyboardType="numeric"
+                    style={styles.input}
+                  />
+                  <View style={styles.formActions}>
+                    <GradientButton
+                      title="Cancel"
+                      onPress={() => {
+                        resetForm();
+                        setAddOpen(false);
+                      }}
+                      variant="secondary"
+                      style={styles.formButton}
+                    />
+                    <GradientButton
+                      title={editId ? 'Update' : 'Add'}
+                      onPress={handleSave}
+                      variant="primary"
+                      style={styles.formButton}
+                    />
+                  </View>
+                </View>
+              )}
+
+              <FlatList
+                data={items}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={renderVenueItem}
+                style={styles.list}
+                showsVerticalScrollIndicator={false}
+                scrollEnabled={false}
+                initialNumToRender={8}
+                maxToRenderPerBatch={8}
+                updateCellsBatchingPeriod={50}
+                windowSize={6}
+                removeClippedSubviews={Platform.OS === 'android'}
+              />
+            </>
+          )}
+
+          {/* Shifts Tab Content */}
+          {activeTab === 'shifts' && (
+            <View style={styles.shiftsContainer}>
+              {shifts.length === 0 ? (
+                <GradientCard variant="subtle" style={styles.emptyState}>
+                  <Ionicons name="time-outline" size={48} color={Colors.textSecondary} />
+                  <Text style={styles.emptyStateTitle}>No shifts yet</Text>
+                  <Text style={styles.emptyStateText}>
+                    Start your first shift to begin tracking your work schedule and earnings.
+                  </Text>
+                  <GradientButton
+                    title="Start Your First Shift"
+                    onPress={() => openShiftForm()}
+                    variant="primary"
+                    style={styles.emptyStateButton}
+                  />
+                </GradientCard>
+              ) : (
+                <FlatList
+                  data={shifts}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <MemoShiftCard
+                      item={item}
+                      openShiftForm={openShiftForm}
+                      handleDeleteShift={handleDeleteShift}
+                      items={items}
+                      clientOptions={clientOptions}
+                    />
+                  )}
+                  style={styles.list}
+                  showsVerticalScrollIndicator={false}
+                  scrollEnabled={false}
+                  initialNumToRender={8}
+                  maxToRenderPerBatch={8}
+                  updateCellsBatchingPeriod={50}
+                  windowSize={6}
+                  removeClippedSubviews={Platform.OS === 'android'}
+                />
+              )}
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Quick Transaction Modal */}
+        {showQuickTransaction && (
+          <GradientCard variant="warm" style={styles.transactionModal}>
           <View style={styles.modalHeader}>
             <View style={styles.modalTitleContainer}>
-              <Ionicons name="flash" size={24} color={Colors.accent} />
-              <Text style={styles.modalTitle}>Quick Transaction Entry</Text>
+              <Ionicons name="card-outline" size={24} color={Colors.accent} />
+              <Text style={styles.modalTitle}>Venue Transactions</Text>
             </View>
             <GradientButton
               title="✕"
-              onPress={resetTransactionForm}
-              variant="secondary"
+              onPress={() => setShowQuickTransaction(false)}
+              variant="coral"
               style={styles.closeButton}
             />
           </View>
@@ -565,93 +873,126 @@ export default function Venues() {
           <View style={styles.modalSubtitle}>
             <Ionicons name="business" size={16} color={Colors.textSecondary} />
             <Text style={styles.modalSubtitleText}>
-              Add transaction data for {items.find(v => v.id === selectedVenueId)?.name || 'venue'}
+              Manage transactions for {venuesById.get(selectedVenueId)?.name || 'venue'}
             </Text>
           </View>
           
-          <View style={styles.transactionTypeSelector}>
-            <GradientButton
-              title="💰 Income"
+          <View style={styles.transactionRedirect}>
+            <Text style={styles.redirectText}>
+              Use the centralized Transaction Manager to add income and expenses for this venue.
+            </Text>
+            <GradientButton 
+              title="Go to Transaction Manager" 
+              variant="warm" 
               onPress={() => {
-                setTransactionType('income');
-                setTransactionCategory('VIP Dance');
+                setShowQuickTransaction(false);
+                navigation.navigate('Transactions');
               }}
-              variant={transactionType === 'income' ? 'primary' : 'secondary'}
-              style={[styles.typeButton, transactionType === 'income' && styles.activeTypeButton]}
+              style={styles.redirectButton}
             />
+          </View>
+        </GradientCard>
+      )}
+
+      {/* Shift Form Modal */}
+      {showShiftForm && (
+        <GradientCard variant="coral" style={styles.transactionModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalTitleContainer}>
+              <Ionicons name="time" size={24} color={Colors.accent} />
+              <Text style={styles.modalTitle}>
+                {editingShift ? 'Edit Shift' : 'Start New Shift'}
+              </Text>
+            </View>
             <GradientButton
-              title="💸 Expense"
+              title="✕"
               onPress={() => {
-                setTransactionType('expense');
-                setTransactionCategory('House Fee');
+                setShowShiftForm(false);
+                resetShiftForm();
               }}
-              variant={transactionType === 'expense' ? 'primary' : 'secondary'}
-              style={[styles.typeButton, transactionType === 'expense' && styles.activeTypeButton]}
+              variant="warm"
+              style={styles.closeButton}
             />
           </View>
 
           <View style={styles.modalForm}>
-            <ModernInput
-              label="Amount"
-              value={transactionAmount}
-              onChangeText={setTransactionAmount}
-              placeholder="Enter amount"
-              keyboardType="numeric"
-              style={styles.modalInput}
-            />
-            
-            <ModernInput
-              label="Category"
-              value={transactionCategory}
-              onChangeText={setTransactionCategory}
-              placeholder={transactionType === 'income' ? 'VIP Dance, Lapdance, etc.' : 'House Fee, Parking, etc.'}
-              style={styles.modalInput}
-            />
-            
-            <ModernInput
-              label="Date"
-              value={transactionDate}
-              onChangeText={setTransactionDate}
-              placeholder="YYYY-MM-DD"
-              style={styles.modalInput}
-            />
-            
+            <View style={styles.clientSection}>
+              <Text style={styles.clientLabel}>Venue *</Text>
+              <GradientButton
+                title={shiftVenueId ? `🏢 ${venuesById.get(shiftVenueId)?.name || 'Unknown'}` : '🏢 Select Venue'}
+                onPress={() => {
+                  const currentIndex = items.findIndex(v => v.id === shiftVenueId);
+                  const nextIndex = currentIndex + 1 >= items.length ? 0 : currentIndex + 1;
+                  setShiftVenueId(items[nextIndex]?.id || '');
+                }}
+                variant="secondary"
+                style={styles.clientButton}
+              />
+            </View>
+
             {clientOptions.length > 0 && (
               <View style={styles.clientSection}>
                 <Text style={styles.clientLabel}>Client (Optional)</Text>
                 <GradientButton
-                  title={selectedClientId ? `👤 ${clientOptions.find(c => c.id === selectedClientId)?.name}` : '👤 No Client'}
+                  title={shiftClientId ? `👤 ${clientsById.get(shiftClientId)?.name}` : '👤 No Client'}
                   onPress={() => {
-                    const currentIndex = clientOptions.findIndex(c => c.id === selectedClientId);
+                    const currentIndex = clientOptions.findIndex(c => c.id === shiftClientId);
                     const nextIndex = currentIndex + 1 >= clientOptions.length ? -1 : currentIndex + 1;
-                    setSelectedClientId(nextIndex === -1 ? null : clientOptions[nextIndex].id);
+                    setShiftClientId(nextIndex === -1 ? null : clientOptions[nextIndex].id);
                   }}
                   variant="secondary"
                   style={styles.clientButton}
                 />
               </View>
             )}
-            
+
+            <DateTimePicker
+              label="Start Time"
+              value={shiftStartStr}
+              onChange={setShiftStartStr}
+              mode="datetime"
+            />
+
+            <DateTimePicker
+              label="End Time"
+              value={shiftEndStr}
+              onChange={setShiftEndStr}
+              mode="datetime"
+            />
+
             <ModernInput
-              label="Note (Optional)"
-              value={transactionNote}
-              onChangeText={setTransactionNote}
-              placeholder="Additional notes"
+              label="Earnings"
+              value={shiftEarnings}
+              onChangeText={setShiftEarnings}
+              placeholder="0.00"
+              keyboardType="numeric"
               style={styles.modalInput}
+            />
+
+            <ModernInput
+              label="Notes (Optional)"
+              value={shiftNotes}
+              onChangeText={setShiftNotes}
+              placeholder="Add any notes about this shift..."
               multiline
+              numberOfLines={3}
+              style={styles.modalInput}
             />
           </View>
-          
+
           <View style={styles.modalActions}>
             <GradientButton
               title="Cancel"
-              onPress={resetTransactionForm}
+              onPress={() => {
+                setShowShiftForm(false);
+                resetShiftForm();
+              }}
               variant="secondary"
               style={styles.modalActionButton}
             />
             <GradientButton
-              title="Add Transaction"
-              onPress={handleQuickTransaction}
+              title={editingShift ? 'Update Shift' : 'Start Shift'}
+              onPress={handleSaveShift}
               variant="primary"
               style={[styles.modalActionButton, styles.primaryActionButton]}
             />
@@ -659,20 +1000,7 @@ export default function Venues() {
         </GradientCard>
       )}
 
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <VenueRow item={item} />}
-        style={styles.list}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="location-outline" size={48} color="#666" />
-            <Text style={styles.emptyTitle}>No venues yet</Text>
-            <Text style={styles.emptySubtitle}>Add your first venue to get started</Text>
-          </View>
-        }
-      />
+      </LinearGradient>
 
       <Text style={styles.note}>
         {Platform.OS === 'web' ? 'Using web localStorage fallback.' : 'Using on-device SQLite database.'}
@@ -946,11 +1274,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textAlign: 'center',
   },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
@@ -1068,69 +1391,113 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: '500',
   },
-  transactionTypeSelector: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-    padding: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
+  transactionRedirect: {
+    padding: Colors.spacing.md,
+    alignItems: 'center',
   },
-  typeButton: {
+  redirectText: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.sm,
+    textAlign: 'center',
+    marginBottom: Colors.spacing.md,
+    lineHeight: 20,
+  },
+  redirectButton: {
+    minWidth: 200,
+  },
+  // Shift-specific styles
+  shiftInfo: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    marginBottom: 16,
   },
-  activeTypeButton: {
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+  shiftHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  modalForm: {
-    gap: 16,
-    marginBottom: 24,
+  shiftVenue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    flex: 1,
+    letterSpacing: 0.5,
   },
-  modalInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+  shiftEarnings: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#06d6a0',
+    textShadowColor: 'rgba(6, 214, 160, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
-  clientSection: {
+  shiftDetails: {
     gap: 8,
   },
-  clientLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  clientButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingVertical: 14,
-  },
-  modalActions: {
+  shiftDetailRow: {
     flexDirection: 'row',
-    gap: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    gap: 8,
   },
-  modalActionButton: {
+  shiftDetailText: {
+    fontSize: 14,
+    color: '#bbb',
+    fontWeight: '500',
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
   },
-  primaryActionButton: {
+  // Tab styles
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    padding: 4,
+    marginBottom: 20,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  activeTab: {
+    backgroundColor: Colors.accent,
     shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 6,
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#bbb',
+  },
+  activeTabText: {
+    color: '#000',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyStateIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#bbb',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
   },
 });

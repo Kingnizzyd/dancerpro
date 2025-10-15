@@ -2,7 +2,7 @@
   "expo": {
     "name": "DancerPro",
     "slug": "dancerpro-mobile",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "platforms": [
       "ios",
       "android",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.dancerpro.app",
-      "versionCode": 1
+      "versionCode": 2
     },
     "extra": {
   "backendUrl": "http://localhost:3001",

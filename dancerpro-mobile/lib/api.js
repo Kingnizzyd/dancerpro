@@ -1,4 +1,4 @@
-import { BACKEND_URL } from './config';
+import { buildApiEndpoint, fetchWithTimeout, getAuthToken } from './http';
 
 /**
  * Fetch cloud snapshot from backend
@@ -6,27 +6,23 @@ import { BACKEND_URL } from './config';
  */
 export async function fetchCloudSnapshot() {
   try {
-    // Get auth token from localStorage (web) or secure storage (mobile)
-    let authToken;
-    if (typeof window !== 'undefined') {
-      authToken = localStorage.getItem('authToken');
-    } else {
-      // For mobile, you'd use secure storage here
-      const { secureGet } = require('./secureStorage');
-      authToken = await secureGet('authToken');
-    }
+    // Get auth token from storage
+    const authToken = await getAuthToken();
 
     if (!authToken) {
       throw new Error('No authentication token found');
     }
 
-    const response = await fetch(`${BACKEND_URL}/api/sync/import`, {
+    // Construct endpoint URL
+    const syncEndpoint = buildApiEndpoint('sync/import');
+
+    const response = await fetchWithTimeout(syncEndpoint, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
-    });
+    }, 15000);
 
     if (response.status === 404) {
       // No cloud snapshot exists yet - this is normal for new users

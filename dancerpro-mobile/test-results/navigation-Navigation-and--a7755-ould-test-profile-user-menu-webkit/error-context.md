@@ -1,0 +1,133 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e10]:
+  - generic [ref=e17]:
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: 
+        - generic [ref=e23]:
+          - generic [ref=e24]: Dashboard
+          - generic [ref=e25]: Your performance overview
+      - generic [ref=e26]:
+        - button "Sync cloud data" [ref=e27] [cursor=pointer]:
+          - generic [ref=e28]: 
+          - generic [ref=e29]: Sync cloud data
+        - button "Refresh dashboard" [ref=e30] [cursor=pointer]:
+          - generic [ref=e31]: 
+          - generic [ref=e32]: Refresh dashboard
+    - generic [ref=e35]:
+      - generic [ref=e38]: "Backend: down"
+      - generic [ref=e39]: —
+    - generic [ref=e41]:
+      - generic [ref=e42]: Time Range
+      - generic [ref=e43]:
+        - generic [ref=e46] [cursor=pointer]: 7 Days
+        - generic [ref=e49] [cursor=pointer]: 30 Days
+        - generic [ref=e52] [cursor=pointer]: 90 Days
+    - generic [ref=e53]:
+      - generic [ref=e56]:
+        - generic [ref=e58]: 
+        - generic [ref=e59]:
+          - generic [ref=e60]: $0.00
+          - generic [ref=e61]: Earnings (7d)
+      - generic [ref=e64]:
+        - generic [ref=e66]: 
+        - generic [ref=e67]:
+          - generic [ref=e68]: "0"
+          - generic [ref=e69]: Shifts (7d)
+      - generic [ref=e72]:
+        - generic [ref=e74]: 
+        - generic [ref=e75]:
+          - generic [ref=e76]: —
+          - generic [ref=e77]: Top Venue
+      - generic [ref=e80]:
+        - generic [ref=e82]: 
+        - generic [ref=e83]:
+          - generic [ref=e84]: $0.00
+          - generic [ref=e85]: Outfit Earnings
+      - generic [ref=e88]:
+        - generic [ref=e90]: 
+        - generic [ref=e91]:
+          - generic [ref=e92]: 0/0
+          - generic [ref=e93]: Profitable Outfits
+      - generic [ref=e96]:
+        - generic [ref=e98]: 
+        - generic [ref=e99]:
+          - generic [ref=e100]: $0.00
+          - generic [ref=e101]: Avg Outfit ROI
+    - generic [ref=e103]:
+      - generic [ref=e104]:
+        - generic [ref=e105]: Top Clients
+        - generic [ref=e108] [cursor=pointer]: View All
+      - generic [ref=e110]:
+        - generic [ref=e111]: 
+        - generic [ref=e112]: No client data yet
+        - generic [ref=e113]: Start adding clients to see performance
+    - generic [ref=e115]:
+      - generic [ref=e116]:
+        - generic [ref=e117]: Earnings Trend
+        - generic [ref=e120] [cursor=pointer]: Export
+      - generic [ref=e122]:
+        - generic [ref=e123]: 
+        - generic [ref=e124]: No trend data yet
+        - generic [ref=e125]: Add shifts to see earnings trends
+    - generic [ref=e126]:
+      - generic [ref=e128]:
+        - generic [ref=e129]: By Venue
+        - generic [ref=e132]: No venue data
+      - generic [ref=e134]:
+        - generic [ref=e135]: By Client
+        - generic [ref=e138]: No client data
+    - generic [ref=e140]:
+      - generic [ref=e141]:
+        - generic [ref=e142]: Top Earning Outfits
+        - generic [ref=e145] [cursor=pointer]: View All
+      - generic [ref=e147]:
+        - generic [ref=e148]: 
+        - generic [ref=e149]: No outfit earnings data yet
+        - generic [ref=e150]: Start linking transactions to outfits to see performance
+    - generic [ref=e152]:
+      - generic [ref=e153]: Data Management
+      - generic [ref=e154]:
+        - generic [ref=e157] [cursor=pointer]: Export All
+        - generic [ref=e160] [cursor=pointer]: Import All
+      - generic [ref=e161]: Using web localStorage fallback.
+  - tablist [ref=e163]:
+    - link "  Dashboard" [ref=e164] [cursor=pointer]:
+      - /url: /Main/Dashboard
+      - generic:
+        - generic [ref=e166]: 
+        - generic [ref=e168]: 
+      - generic [ref=e169]: Dashboard
+    - link "  Clients" [ref=e170] [cursor=pointer]:
+      - /url: /Main/Clients
+      - generic:
+        - generic [ref=e172]: 
+        - generic [ref=e174]: 
+      - generic [ref=e175]: Clients
+    - link "  Transactions" [ref=e176] [cursor=pointer]:
+      - /url: /Main/Transactions
+      - generic:
+        - generic [ref=e178]: 
+        - generic [ref=e180]: 
+      - generic [ref=e181]: Transactions
+    - link "  Outfits" [ref=e182] [cursor=pointer]:
+      - /url: /Main/Outfits
+      - generic:
+        - generic [ref=e184]: 
+        - generic [ref=e186]: 
+      - generic [ref=e187]: Outfits
+    - link "  Venues" [ref=e188] [cursor=pointer]:
+      - /url: /Main/Venues
+      - generic:
+        - generic [ref=e190]: 
+        - generic [ref=e192]: 
+      - generic [ref=e193]: Venues
+    - link "  AI" [ref=e194] [cursor=pointer]:
+      - /url: /Main/AI
+      - generic:
+        - generic [ref=e196]: 
+        - generic [ref=e198]: 
+      - generic [ref=e199]: AI
+```

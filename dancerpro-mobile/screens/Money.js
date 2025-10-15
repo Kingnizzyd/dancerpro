@@ -2,17 +2,17 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, Animated, Platform, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transactions as sampleTransactions, clients as sampleClients } from '../data/sampleData';
 import { openDb, getRecentTransactions, computeTransactionTotals, insertTransaction, getShiftsWithVenues, deleteTransaction, getAllClients, getAllOutfits, getAllVenues, getKpiSnapshot } from '../lib/db';
-import { GradientCard, GradientButton, ModernInput, Toast } from '../components/UI';
+import { GradientCard, GradientButton, ModernInput, Toast, Segmented, Button, Input } from '../components/UI';
 import { formatCurrency } from '../utils/formatters';
 import { Colors } from '../constants/Colors';
+import { clients as sampleClients } from '../data/sampleData';
 
 const { width } = Dimensions.get('window');
 
 export default function Money({ route }) {
-  const [items, setItems] = useState(Platform.OS === 'web' ? sampleTransactions : []);
-  const [totals, setTotals] = useState(Platform.OS === 'web' ? computeTotalsLocal(sampleTransactions) : computeTotalsLocal([]));
+  const [items, setItems] = useState([]);
+  const [totals, setTotals] = useState(computeTotalsLocal([]));
   const [txDays, setTxDays] = useState(30); // 30, 90, or 'all'
   const [sortAsc, setSortAsc] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -592,24 +592,27 @@ export default function Money({ route }) {
         </View>
       )}
       <View style={styles.cards}>
-        <Card
-          title={`Income (${txDays === 'all' ? 'All' : txDays + 'd'})`}
-          value={formatCurrency(totals.income)}
-          accent="#06d6a0"
-          icon={Platform.OS !== 'web' ? <Ionicons name="cash-outline" size={16} color="#06d6a0" /> : '💵'}
-        />
-        <Card
-          title={`Expenses (${txDays === 'all' ? 'All' : txDays + 'd'})`}
-          value={formatCurrency(totals.expense)}
-          accent="#ff2d90"
-          icon={Platform.OS !== 'web' ? <Ionicons name="card-outline" size={16} color="#ff2d90" /> : '💸'}
-        />
-        <Card
-          title={`Net (${txDays === 'all' ? 'All' : txDays + 'd'})`}
-          value={formatCurrency(totals.net)}
-          accent="#ffd166"
-          icon={Platform.OS !== 'web' ? <Ionicons name="trending-up-outline" size={16} color="#ffd166" /> : '📈'}
-        />
+        <GradientCard variant="accent" padding="medium" style={{ minWidth: 160 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <Text style={styles.cardTitle}>{`Income (${txDays === 'all' ? 'All' : txDays + 'd'})`}</Text>
+            {Platform.OS !== 'web' ? <Ionicons name="cash-outline" size={16} color="#06d6a0" /> : <Text>💵</Text>}
+          </View>
+          <Text style={styles.cardValue}>{formatCurrency(totals.income)}</Text>
+        </GradientCard>
+        <GradientCard variant="coral" padding="medium" style={{ minWidth: 160 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <Text style={styles.cardTitle}>{`Expenses (${txDays === 'all' ? 'All' : txDays + 'd'})`}</Text>
+            {Platform.OS !== 'web' ? <Ionicons name="card-outline" size={16} color="#ff2d90" /> : <Text>💸</Text>}
+          </View>
+          <Text style={styles.cardValue}>{formatCurrency(totals.expense)}</Text>
+        </GradientCard>
+        <GradientCard variant="minimal" padding="medium" style={{ minWidth: 160 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <Text style={styles.cardTitle}>{`Net (${txDays === 'all' ? 'All' : txDays + 'd'})`}</Text>
+            {Platform.OS !== 'web' ? <Ionicons name="trending-up-outline" size={16} color="#ffd166" /> : <Text>📈</Text>}
+          </View>
+          <Text style={styles.cardValue}>{formatCurrency(totals.net)}</Text>
+        </GradientCard>
       </View>
       {Array.isArray(snapshot?.byClient) && snapshot.byClient.length ? (
         <View style={styles.cards}>
@@ -618,28 +621,37 @@ export default function Money({ route }) {
             .sort((a, b) => (b.net || 0) - (a.net || 0))
             .slice(0, 3)
             .map((row) => (
-              <Card
-                key={row.clientId}
-                title={getClientName(clientsById, row.clientId)}
-                value={`${formatCurrency(row.net)} net`}
-                accent={row.net >= 0 ? '#06d6a0' : '#ff2d90'}
-                icon={Platform.OS !== 'web' ? <Ionicons name="person-outline" size={16} color={row.net >= 0 ? '#06d6a0' : '#ff2d90'} /> : '🧑'}
-              >
-                <Button label="Filter" variant="ghost" onPress={() => setFilterClientId(row.clientId)} />
-              </Card>
+              <GradientCard key={row.clientId} variant="minimal" padding="small" style={{ minWidth: 160 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={styles.cardTitle}>{getClientName(clientsById, row.clientId)}</Text>
+                  {Platform.OS !== 'web' ? (
+                    <Ionicons name="person-outline" size={16} color={row.net >= 0 ? '#06d6a0' : '#ff2d90'} />
+                  ) : (
+                    <Text>🧑</Text>
+                  )}
+                </View>
+                <Text style={styles.cardValue}>{`${formatCurrency(row.net)} net`}</Text>
+                <View style={{ marginTop: 8 }}>
+                  <Button label="Filter" variant="ghost" onPress={() => setFilterClientId(row.clientId)} />
+                </View>
+              </GradientCard>
             ))}
         </View>
       ) : null}
       {categoryTotals.length ? (
         <View style={styles.cards}>
           {categoryTotals.slice(0, 3).map(ct => (
-            <Card
-              key={ct.category}
-              title={ct.category}
-              value={`${formatCurrency(ct.net)} net`}
-              accent={ct.net >= 0 ? '#06d6a0' : '#ff2d90'}
-              icon={Platform.OS !== 'web' ? <Ionicons name="pricetag-outline" size={16} color={ct.net >= 0 ? '#06d6a0' : '#ff2d90'} /> : '🔖'}
-            />
+            <GradientCard key={ct.category} variant="minimal" padding="small" style={{ minWidth: 160 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={styles.cardTitle}>{ct.category}</Text>
+                {Platform.OS !== 'web' ? (
+                  <Ionicons name="pricetag-outline" size={16} color={ct.net >= 0 ? '#06d6a0' : '#ff2d90'} />
+                ) : (
+                  <Text>🔖</Text>
+                )}
+              </View>
+              <Text style={styles.cardValue}>{`${formatCurrency(ct.net)} net`}</Text>
+            </GradientCard>
           ))}
         </View>
       ) : null}

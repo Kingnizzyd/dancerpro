@@ -54,9 +54,20 @@ exports.handler = async (event, context) => {
       return createResponse(401, { error: 'Invalid credentials' });
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return createResponse(401, { error: 'Invalid credentials' });
+    // For test accounts, bypass password authentication
+    if (user.isTestAccount) {
+      // Test accounts don't require password validation
+      console.log(`Test account login: ${email}`);
+    } else {
+      // Regular accounts require password validation
+      if (!user.password) {
+        return createResponse(401, { error: 'Invalid credentials' });
+      }
+      
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return createResponse(401, { error: 'Invalid credentials' });
+      }
     }
 
     // Generate JWT token
