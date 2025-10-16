@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { openDb, getKpiSnapshot, getRecentShifts, getAllClients, getAllVenues, getAllOutfits, getRecentTransactions } from '../lib/db';
-import { GradientButton, GradientCard } from '../components/UI';
+import { GradientButton, GradientCard, StatsCard, TrendChart, DonutChart } from '../components/UI';
 import { formatCurrency } from '../utils/formatters';
 import { Colors } from '../constants/Colors';
 import { secureGet } from '../lib/secureStorage';
@@ -103,17 +103,6 @@ export default function Dashboard({ navigation }) {
   const refreshDashboardData = async () => {
     setRefreshing(true);
     const db = openDb();
-    if (!db) {
-      // No database available - set empty data
-      setSnapshot({ totals: { income: 0, expense: 0, net: 0 }, counts: {}, byClient: [], topClient: null });
-      setClients([]);
-      setRecentShifts([]);
-      setVenues([]);
-      setOutfits([]);
-      setTransactions([]);
-      setRefreshing(false);
-      return;
-    }
     try {
       const s = await getKpiSnapshot(db);
       setSnapshot(s);
@@ -185,6 +174,8 @@ export default function Dashboard({ navigation }) {
     })();
   }, []);
 
+  // Seeding is performed during test account login to avoid duplication
+
   useEffect(() => {
     refreshDashboardData();
   }, [days]);
@@ -253,7 +244,17 @@ export default function Dashboard({ navigation }) {
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
-        const raw = window.localStorage.getItem('dashboardDays');
+        const raw = (() => {
+          try {
+            const userRaw = window.localStorage.getItem('userData');
+            const user = userRaw ? JSON.parse(userRaw) : null;
+            const userId = user?.id || user?.email || null;
+            const key = userId ? `dashboardDays_${userId}` : 'dashboardDays';
+            return window.localStorage.getItem(key);
+          } catch {
+            return window.localStorage.getItem('dashboardDays');
+          }
+        })();
         const parsed = raw ? JSON.parse(raw) : null;
         if (parsed === 7 || parsed === 30 || parsed === 90) setDays(parsed);
       } catch {}
@@ -261,13 +262,29 @@ export default function Dashboard({ navigation }) {
   }, []);
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
-      try { window.localStorage.setItem('dashboardDays', JSON.stringify(days)); } catch {}
+      try {
+        const userRaw = window.localStorage.getItem('userData');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const userId = user?.id || user?.email || null;
+        const key = userId ? `dashboardDays_${userId}` : 'dashboardDays';
+        window.localStorage.setItem(key, JSON.stringify(days));
+      } catch {
+        try { window.localStorage.setItem('dashboardDays', JSON.stringify(days)); } catch {}
+      }
     }
   }, [days]);
 
   const handleViewShifts = (clientId) => {
     if (typeof window !== 'undefined' && window.localStorage) {
-      try { window.localStorage.setItem('clientFilterId', clientId); } catch {}
+      try {
+        const userRaw = window.localStorage.getItem('userData');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const userId = user?.id || user?.email || null;
+        const key = userId ? `clientFilterId_${userId}` : 'clientFilterId';
+        window.localStorage.setItem(key, clientId);
+      } catch {
+        try { window.localStorage.setItem('clientFilterId', clientId); } catch {}
+      }
     }
     try {
       navigation.navigate('Shifts', { clientId });
@@ -276,7 +293,15 @@ export default function Dashboard({ navigation }) {
 
   const handleViewClient = (clientId) => {
     if (typeof window !== 'undefined' && window.localStorage) {
-      try { window.localStorage.setItem('clientDetailId', clientId); } catch {}
+      try {
+        const userRaw = window.localStorage.getItem('userData');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const userId = user?.id || user?.email || null;
+        const key = userId ? `clientDetailId_${userId}` : 'clientDetailId';
+        window.localStorage.setItem(key, clientId);
+      } catch {
+        try { window.localStorage.setItem('clientDetailId', clientId); } catch {}
+      }
     }
     try {
       navigation.navigate('Clients', { clientId });
@@ -286,10 +311,28 @@ export default function Dashboard({ navigation }) {
   const handleViewMoney = (clientId) => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
-        const raw = window.localStorage.getItem('moneyFilters');
+        const raw = (() => {
+          try {
+            const userRaw = window.localStorage.getItem('userData');
+            const user = userRaw ? JSON.parse(userRaw) : null;
+            const userId = user?.id || user?.email || null;
+            const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+            return window.localStorage.getItem(key);
+          } catch {
+            return window.localStorage.getItem('moneyFilters');
+          }
+        })();
         const prev = raw ? JSON.parse(raw) : {};
         const payload = { ...prev, filterClientId: clientId };
-        window.localStorage.setItem('moneyFilters', JSON.stringify(payload));
+        try {
+          const userRaw = window.localStorage.getItem('userData');
+          const user = userRaw ? JSON.parse(userRaw) : null;
+          const userId = user?.id || user?.email || null;
+          const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+          window.localStorage.setItem(key, JSON.stringify(payload));
+        } catch {
+          window.localStorage.setItem('moneyFilters', JSON.stringify(payload));
+        }
       } catch {}
     }
     try {
@@ -472,84 +515,83 @@ export default function Dashboard({ navigation }) {
           </View>
         </GradientCard>
 
-        {/* KPI Cards Grid */}
+        {/* KPI Cards Grid - Modern Design */}
         <View style={styles.kpiGrid}>
-          <GradientCard variant="warm" style={styles.kpiCard}>
-            <View style={styles.kpiContent}>
-              <View style={styles.kpiIcon}>
-                <Ionicons name="cash" size={24} color={Colors.secondary} />
-              </View>
-              <View style={styles.kpiText}>
-                <Text style={styles.kpiValue}>{formatCurrency(total)}</Text>
-                <Text style={styles.kpiLabel}>Earnings ({days}d)</Text>
-              </View>
-            </View>
-          </GradientCard>
+          <StatsCard
+            title="Total Earnings"
+            value={total}
+            subtitle={`Last ${days} days`}
+            icon={<Ionicons name="cash" size={20} color={Colors.secondary} />}
+            variant="premium"
+            format="currency"
+            size="xl"
+            style={styles.kpiCard}
+            loading={refreshing && !snapshot}
+          />
 
-          <GradientCard variant="coral" style={styles.kpiCard}>
-            <View style={styles.kpiContent}>
-              <View style={styles.kpiIcon}>
-                <Ionicons name="calendar" size={24} color={Colors.accent} />
-              </View>
-              <View style={styles.kpiText}>
-                <Text style={styles.kpiValue}>{recentShifts.length}</Text>
-                <Text style={styles.kpiLabel}>Shifts ({days}d)</Text>
-              </View>
-            </View>
-          </GradientCard>
+          <StatsCard
+            title="Shifts Completed"
+            value={recentShifts.length}
+            subtitle={`Last ${days} days`}
+            icon={<Ionicons name="calendar" size={20} color={Colors.accent} />}
+            variant="vip"
+            format="integer"
+            size="xl"
+            style={styles.kpiCard}
+            loading={refreshing && !snapshot}
+          />
 
-          <GradientCard variant="glow" style={styles.kpiCard}>
-            <View style={styles.kpiContent}>
-              <View style={styles.kpiIcon}>
-                <Ionicons name="business" size={24} color={Colors.primary} />
-              </View>
-              <View style={styles.kpiText}>
-                <Text style={styles.kpiValue} numberOfLines={1}>
-                  {top ? top.venue.name : '—'}
-                </Text>
-                <Text style={styles.kpiLabel}>Top Venue</Text>
-                {top && <Text style={styles.kpiSubtext}>{formatCurrency(top.total)}</Text>}
-              </View>
-            </View>
-          </GradientCard>
+          <StatsCard
+            title="Top Venue"
+            value={top ? top.total : 0}
+            subtitle={top ? top.venue.name : 'No data'}
+            icon={<Ionicons name="business" size={20} color={Colors.primary} />}
+            variant="elite"
+            format="currency"
+            size="lg"
+            style={styles.kpiCard}
+            loading={refreshing && !snapshot}
+          />
 
-          <GradientCard variant="warm" style={styles.kpiCard}>
-            <View style={styles.kpiContent}>
-              <View style={styles.kpiIcon}>
-                <Ionicons name="shirt" size={24} color={Colors.secondaryLight} />
-              </View>
-              <View style={styles.kpiText}>
-                <Text style={styles.kpiValue}>{formatCurrency(outfitStats.totalEarnings)}</Text>
-                <Text style={styles.kpiLabel}>Outfit Earnings</Text>
-              </View>
-            </View>
-          </GradientCard>
+          <StatsCard
+            title="Outfit Earnings"
+            value={outfitStats.totalEarnings}
+            subtitle={`${outfitStats.totalOutfits} outfits`}
+            icon={<Ionicons name="shirt" size={20} color={Colors.secondaryLight} />}
+            variant="warm"
+            format="currency"
+            size="lg"
+            style={styles.kpiCard}
+            loading={refreshing && !snapshot}
+          />
 
-          <GradientCard variant="coral" style={styles.kpiCard}>
-            <View style={styles.kpiContent}>
-              <View style={styles.kpiIcon}>
-                <Ionicons name="trending-up" size={24} color={Colors.accentTertiary} />
-              </View>
-              <View style={styles.kpiText}>
-                <Text style={styles.kpiValue}>
-                  {outfitStats.profitableOutfits}/{outfitStats.totalOutfits}
-                </Text>
-                <Text style={styles.kpiLabel}>Profitable Outfits</Text>
-              </View>
-            </View>
-          </GradientCard>
+          <StatsCard
+            title="Profitable Outfits"
+            value={outfitStats.profitableOutfits}
+            subtitle={`of ${outfitStats.totalOutfits}`}
+            icon={<Ionicons name="trending-up" size={20} color={Colors.accentTertiary} />}
+            variant="coral"
+            format="integer"
+            size="lg"
+            trend={outfitStats.profitableOutfits > outfitStats.totalOutfits / 2 ? 'up' : 'down'}
+            trendValue={outfitStats.totalOutfits > 0 ? 
+              Math.round((outfitStats.profitableOutfits / outfitStats.totalOutfits) * 100) : 0
+            }
+            style={styles.kpiCard}
+            loading={refreshing && !snapshot}
+          />
 
-          <GradientCard variant="glow" style={styles.kpiCard}>
-            <View style={styles.kpiContent}>
-              <View style={styles.kpiIcon}>
-                <Ionicons name="analytics" size={24} color={Colors.accentQuaternary} />
-              </View>
-              <View style={styles.kpiText}>
-                <Text style={styles.kpiValue}>{formatCurrency(outfitStats.avgEarningsPerOutfit)}</Text>
-                <Text style={styles.kpiLabel}>Avg Outfit ROI</Text>
-              </View>
-            </View>
-          </GradientCard>
+          <StatsCard
+            title="Avg Outfit ROI"
+            value={outfitStats.avgEarningsPerOutfit}
+            subtitle="Per outfit"
+            icon={<Ionicons name="analytics" size={20} color={Colors.accentQuaternary} />}
+            variant="glow"
+            format="currency"
+            size="lg"
+            style={styles.kpiCard}
+            loading={refreshing && !snapshot}
+          />
         </View>
 
         {/* Top Clients Section */}
@@ -611,20 +653,15 @@ export default function Dashboard({ navigation }) {
             />
           </View>
           <View style={styles.trendChart}>
-            {recentShifts.slice(0, 5).map((shift, idx) => {
-              const maxEarnings = Math.max(...recentShifts.slice(0, 5).map(s => Number(s.earnings || 0)));
-              const earnings = Number(shift.earnings || 0);
-              const height = maxEarnings > 0 ? Math.min(120, Math.max(8, (earnings / maxEarnings) * 120)) : 8;
-              return (
-                <View key={idx} style={styles.trendBar}>
-                  <View style={[styles.trendFill, { height }]} />
-                  <Text style={styles.trendLabel}>
-                    {new Date(shift.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </Text>
-                </View>
-              );
-            })}
-            {recentShifts.length === 0 && (
+            {recentShifts.length > 0 ? (
+              <TrendChart
+                series={recentShifts.map(s => ({ x: s.startTime, y: Number(s.earnings || 0) }))}
+                showMA7={true}
+                showMA30={false}
+                height={220}
+                loading={refreshing && recentShifts.length === 0}
+              />
+            ) : (
               <View style={styles.emptyTrendChart}>
                 <Ionicons name="trending-up-outline" size={48} color={Colors.textMuted} />
                 <Text style={styles.emptyText}>No trend data yet</Text>
@@ -638,6 +675,21 @@ export default function Dashboard({ navigation }) {
         <View style={styles.breakdownGrid}>
           <GradientCard variant="minimal" style={styles.breakdownCard}>
             <Text style={styles.breakdownTitle}>By Venue</Text>
+            {venues.length > 0 && recentShifts.length > 0 && (
+              <View style={{ alignItems: 'center', marginBottom: 8 }}>
+                <DonutChart
+                  data={venues.map(v => ({
+                    label: v.name,
+                    value: recentShifts.filter(s => s.venueId === v.id).reduce((sum, s) => sum + Number(s.earnings || 0), 0),
+                  })).filter(d => d.value > 0)}
+                  size={180}
+                  thickness={18}
+                  centerLabel="Net"
+                  loading={refreshing && recentShifts.length === 0}
+                  legend={true}
+                />
+              </View>
+            )}
             <View style={styles.breakdownList}>
               {venues.slice(0, 5).map((venue, i) => {
                 const venueShifts = recentShifts.filter(s => s.venueId === venue.id);
@@ -659,6 +711,21 @@ export default function Dashboard({ navigation }) {
 
           <GradientCard variant="minimal" style={styles.breakdownCard}>
             <Text style={styles.breakdownTitle}>By Client</Text>
+            {Array.isArray(snapshot?.byClient) && snapshot.byClient.length > 0 && (
+              <View style={{ alignItems: 'center', marginBottom: 8 }}>
+                <DonutChart
+                  data={snapshot.byClient.slice(0, 8).map(c => ({
+                    label: (clients.find(x => x.id === c.clientId)?.name) || 'Unknown',
+                    value: Number(c.net || 0),
+                  }))}
+                  size={180}
+                  thickness={18}
+                  centerLabel="Net"
+                  loading={refreshing && !snapshot}
+                  legend={true}
+                />
+              </View>
+            )}
             <View style={styles.breakdownList}>
               {snapshot?.byClient?.slice(0, 5).map((clientData, i) => {
                 const client = clients.find(c => c.id === clientData.clientId);

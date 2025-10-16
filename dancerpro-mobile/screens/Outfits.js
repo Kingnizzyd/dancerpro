@@ -20,6 +20,7 @@ export default function Outfits() {
   const [wearCount, setWearCount] = useState('');
   const [photos, setPhotos] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [showImageOptions, setShowImageOptions] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'info', visible: false });
   const [venues, setVenues] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -252,15 +253,12 @@ export default function Outfits() {
   };
 
   const showImagePicker = () => {
-    Alert.alert(
-      'Select Image',
-      'Choose how you want to add an image for this outfit',
-      [
-        { text: 'Camera', onPress: takePhoto },
-        { text: 'Gallery', onPress: pickImage },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+    // On web, Alert actions are not supported; open gallery directly
+    if (Platform.OS === 'web') {
+      return pickImage();
+    }
+    // On native, reveal inline options panel for reliability
+    setShowImageOptions(true);
   };
 
   const takePhoto = async () => {
@@ -285,9 +283,11 @@ export default function Outfits() {
         const photo = await persistImageAsync(result.assets[0]);
         setPhotos([photo]);
         setSelectedImage(photo.uri);
+        setShowImageOptions(false);
       } catch (e) {
         console.warn('Persist camera image failed:', e);
         setSelectedImage(result.assets[0].uri);
+        setShowImageOptions(false);
       }
     }
   };
@@ -308,9 +308,11 @@ export default function Outfits() {
         const photo = await persistImageAsync(result.assets[0]);
         setPhotos([photo]);
         setSelectedImage(photo.uri);
+        setShowImageOptions(false);
       } catch (e) {
         console.warn('Persist picked image failed:', e);
         setSelectedImage(result.assets[0].uri);
+        setShowImageOptions(false);
       }
     }
   };
@@ -429,7 +431,7 @@ export default function Outfits() {
         </View>
       </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Analytics Cards */}
         <View style={styles.analyticsContainer}>
           <GradientCard style={styles.analyticsCard}>
@@ -563,7 +565,7 @@ export default function Outfits() {
       {addOpen && (
         <View style={styles.modalOverlay}>
           <GradientCard variant="glow" style={styles.modalSheet}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{editItem ? 'Edit Outfit' : 'Add Outfit'}</Text>
                 <TouchableOpacity 
@@ -611,14 +613,35 @@ export default function Outfits() {
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    <TouchableOpacity 
-                      style={styles.imagePickerButton}
-                      onPress={showImagePicker}
-                    >
-                      <Ionicons name="camera" size={32} color={Colors.primary} />
-                      <Text style={styles.imagePickerText}>Add Photo</Text>
-                      <Text style={styles.imagePickerSubtext}>Camera or Gallery</Text>
-                    </TouchableOpacity>
+                    <>
+                      <TouchableOpacity 
+                        style={styles.imagePickerButton}
+                        onPress={showImagePicker}
+                      >
+                        <Ionicons name="camera" size={32} color={Colors.primary} />
+                        <Text style={styles.imagePickerText}>Add Photo</Text>
+                        <Text style={styles.imagePickerSubtext}>Camera or Gallery</Text>
+                      </TouchableOpacity>
+                      {showImageOptions && Platform.OS !== 'web' && (
+                        <View style={styles.imageOptions}>
+                          <GradientButton 
+                            title="Camera" 
+                            variant="primary" 
+                            onPress={takePhoto}
+                            style={styles.imageOptionButton}
+                          />
+                          <GradientButton 
+                            title="Gallery" 
+                            variant="secondary" 
+                            onPress={pickImage}
+                            style={styles.imageOptionButton}
+                          />
+                          <TouchableOpacity onPress={() => setShowImageOptions(false)} style={styles.imageOptionsCancel}>
+                            <Text style={styles.imageOptionsCancelText}>Cancel</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </>
                   )}
                 </View>
               </View>
@@ -989,5 +1012,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 4,
+  },
+  imageOptions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 12,
+  },
+  imageOptionButton: {
+    flex: 1,
+  },
+  imageOptionsCancel: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  imageOptionsCancelText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textDecorationLine: 'underline',
   },
 });

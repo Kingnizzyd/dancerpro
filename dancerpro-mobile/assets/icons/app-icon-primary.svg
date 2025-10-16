@@ -1,0 +1,65 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Gradient -->
+  <defs>
+    <linearGradient id="backgroundGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A0A0A" stop-opacity="0.95"/>
+      <stop offset="50%" stop-color="#1E1E1E" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#2A1F2A" stop-opacity="0.85"/>
+    </linearGradient>
+    
+    <linearGradient id="dancerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B19CD9"/>
+      <stop offset="50%" stop-color="#D4C4E8"/>
+      <stop offset="100%" stop-color="#E8A87C"/>
+    </linearGradient>
+    
+    <linearGradient id="ribbonGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B9D"/>
+      <stop offset="100%" stop-color="#FF1493"/>
+    </linearGradient>
+    
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="15" result="blur"/>
+      <feComposite in="blur" in2="SourceAlpha" operator="in" result="glow"/>
+    </filter>
+  </defs>
+  
+  <!-- Background Circle -->
+  <circle cx="512" cy="512" r="480" fill="url(#backgroundGradient)" stroke="#3A3A3A" stroke-width="2"/>
+  
+  <!-- Main Dancer Silhouette -->
+  <g transform="translate(512, 512) scale(1.8)">
+    <!-- Elegant dancer pose with business elements -->
+    <path d="M-80,-80 C-40,-120 40,-120 80,-80 C120,-40 120,40 80,80 C40,120 -40,120 -80,80 C-120,40 -120,-40 -80,-80 Z" 
+          fill="url(#dancerGradient)" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+    
+    <!-- Graceful arm curves -->
+    <path d="M-60,-40 Q-80,-60 -60,-80 Q-40,-100 -20,-80 Q0,-60 20,-40" 
+          stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" fill="none"/>
+    
+    <path d="M60,-40 Q80,-60 60,-80 Q40,-100 20,-80 Q0,-60 -20,-40" 
+          stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" fill="none"/>
+    
+    <!-- Business ribbon element -->
+    <path d="M-40,0 L40,0 L30,20 L-30,20 Z" 
+          fill="url(#ribbonGradient)" stroke="#FFFFFF" stroke-width="2"/>
+    
+    <!-- Dollar sign business symbol -->
+    <text x="0" y="12" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="14" font-weight="bold">$</text>
+    
+    <!-- Subtle glow effect -->
+    <circle cx="0" cy="0" r="60" fill="#FF1493" fill-opacity="0.1" filter="url(#glow)"/>
+  </g>
+  
+  <!-- Outer ring with brand colors -->
+  <circle cx="512" cy="512" r="460" fill="none" stroke="url(#dancerGradient)" stroke-width="8" stroke-dasharray="30,15"/>
+  
+  <!-- App name (subtle) -->
+  <text x="512" y="800" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="32" font-weight="bold" opacity="0.8">DancerPro</text>
+  
+  <!-- Neon accent dots -->
+  <circle cx="200" cy="200" r="12" fill="#FF1493" opacity="0.6"/>
+  <circle cx="824" cy="824" r="8" fill="#00BFFF" opacity="0.6"/>
+  <circle cx="200" cy="824" r="10" fill="#00FF7F" opacity="0.6"/>
+  <circle cx="824" cy="200" r="6" fill="#FFFF00" opacity="0.6"/>
+</svg>

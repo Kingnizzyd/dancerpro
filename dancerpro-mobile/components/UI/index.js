@@ -5,8 +5,12 @@ import { Colors, Typography, BorderRadius, Spacing, Shadows } from '../../consta
 
 // Export new modern components
 export { GradientButton } from './GradientButton';
-export { GradientCard } from './GradientCard';
+export { default as GradientCard } from './GradientCard';
 export { ModernInput } from './ModernInput';
+export { TrendChart } from './TrendChart';
+export { default as StatsCard } from './StatsCard';
+export { default as AnimatedNumber } from './AnimatedNumber';
+export { default as DonutChart } from './DonutChart';
 
 // Tag Component - Updated with modern styling
 export const Tag = ({ children, style, variant = 'default', ...props }) => {

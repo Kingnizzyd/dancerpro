@@ -65,74 +65,60 @@ export default function Venues() {
   // Load persisted venues on web
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const raw = window.localStorage.getItem('venues');
-      if (raw) {
-        try {
+      try {
+        const userRaw = window.localStorage.getItem('userData');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const userId = user?.id || user?.email || null;
+        const key = userId ? `venues_${userId}` : 'venues';
+        const raw = window.localStorage.getItem(key);
+        if (raw) {
           const saved = JSON.parse(raw);
           if (Array.isArray(saved)) setItems(saved);
-        } catch {}
-      }
+        }
+      } catch {}
     }
   }, []);
 
   // Load persisted shifts on web
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const raw = window.localStorage.getItem('shifts');
-      if (raw) {
-        try {
+      try {
+        const userRaw = window.localStorage.getItem('userData');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const userId = user?.id || user?.email || null;
+        const key = userId ? `shifts_${userId}` : 'shifts';
+        const raw = window.localStorage.getItem(key);
+        if (raw) {
           const saved = JSON.parse(raw);
           if (Array.isArray(saved)) setShifts(saved);
-        } catch {}
-      }
+        }
+      } catch {}
     }
   }, []);
 
   async function loadVenues() {
-    const db = openDb();
-    if (!db) return; // web fallback uses sample data
     try {
-      const rows = await getAllVenues(db);
+      const rows = await getAllVenues(openDb());
       setItems(rows);
     } catch (e) {
-      console.warn('Venues DB load failed, using sample data', e);
+      console.warn('Venues load failed', e);
     }
   }
 
   async function loadClients() {
-    const db = openDb();
-    if (!db) {
-      // Web fallback
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const raw = window.localStorage.getItem('clients');
-        if (raw) {
-          try {
-            const saved = JSON.parse(raw);
-            if (Array.isArray(saved)) setClientOptions(saved);
-          } catch {}
-        }
-      }
-      return;
-    }
     try {
-      const rows = await getAllClients(db);
+      const rows = await getAllClients(openDb());
       setClientOptions(rows);
     } catch (e) {
-      console.warn('Clients DB load failed', e);
+      console.warn('Clients load failed', e);
     }
   }
 
   async function loadShifts() {
-    const db = openDb();
-    if (!db) {
-      // Web fallback - use sample data
-      setShifts(sampleShifts);
-      return;
-    }
     try {
+      const db = openDb();
       const rows = await getShiftsWithVenues(db);
       setShifts(rows);
-      
       // Load transaction totals for each shift
       const totalsMap = new Map();
       for (const shift of rows) {
@@ -145,8 +131,7 @@ export default function Venues() {
       }
       setTotalsByShift(totalsMap);
     } catch (e) {
-      console.warn('Shifts DB load failed, using sample data', e);
-      setShifts(sampleShifts);
+      console.warn('Shifts load failed', e);
     }
   }
 
@@ -168,9 +153,18 @@ export default function Venues() {
         setPerfData(perf);
         setPerfRecentShifts(recent);
       } else {
-        // Web fallback using localStorage or sample data
-        const rawShifts = JSON.parse(localStorage.getItem('shifts') || '[]');
-        const allShifts = Array.isArray(rawShifts) && rawShifts.length ? rawShifts : sampleShifts;
+        // Web fallback using user-scoped localStorage or sample data
+        let allShifts = [];
+        try {
+          const userRaw = window.localStorage.getItem('userData');
+          const user = userRaw ? JSON.parse(userRaw) : null;
+          const userId = user?.id || user?.email || null;
+          const key = userId ? `shifts_${userId}` : 'shifts';
+          const rawShifts = JSON.parse(window.localStorage.getItem(key) || '[]');
+          allShifts = Array.isArray(rawShifts) && rawShifts.length ? rawShifts : sampleShifts;
+        } catch {
+          allShifts = sampleShifts;
+        }
         const filtered = allShifts.filter(s => s.venueId === venueId);
         let total = 0;
         const byDow = new Map();
@@ -257,7 +251,15 @@ export default function Venues() {
           );
           setItems(updated);
           if (typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.setItem('venues', JSON.stringify(updated));
+            try {
+              const userRaw = window.localStorage.getItem('userData');
+              const user = userRaw ? JSON.parse(userRaw) : null;
+              const userId = user?.id || user?.email || null;
+              const key = userId ? `venues_${userId}` : 'venues';
+              window.localStorage.setItem(key, JSON.stringify(updated));
+            } catch {
+              window.localStorage.setItem('venues', JSON.stringify(updated));
+            }
           }
         }
         setToast({ message: 'Venue updated successfully', type: 'success', visible: true });
@@ -280,7 +282,15 @@ export default function Venues() {
           const updated = [...items, newVenue];
           setItems(updated);
           if (typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.setItem('venues', JSON.stringify(updated));
+            try {
+              const userRaw = window.localStorage.getItem('userData');
+              const user = userRaw ? JSON.parse(userRaw) : null;
+              const userId = user?.id || user?.email || null;
+              const key = userId ? `venues_${userId}` : 'venues';
+              window.localStorage.setItem(key, JSON.stringify(updated));
+            } catch {
+              window.localStorage.setItem('venues', JSON.stringify(updated));
+            }
           }
         }
         setToast({ message: 'Venue added successfully', type: 'success', visible: true });
@@ -324,7 +334,15 @@ export default function Venues() {
                 const updated = items.filter(v => v.id !== venue.id);
                 setItems(updated);
                 if (typeof window !== 'undefined' && window.localStorage) {
-                  window.localStorage.setItem('venues', JSON.stringify(updated));
+                  try {
+                    const userRaw = window.localStorage.getItem('userData');
+                    const user = userRaw ? JSON.parse(userRaw) : null;
+                    const userId = user?.id || user?.email || null;
+                    const key = userId ? `venues_${userId}` : 'venues';
+                    window.localStorage.setItem(key, JSON.stringify(updated));
+                  } catch {
+                    window.localStorage.setItem('venues', JSON.stringify(updated));
+                  }
                 }
               }
               setToast({ message: 'Venue deleted successfully', type: 'success', visible: true });
@@ -619,7 +637,17 @@ export default function Venues() {
         }
       } else {
         // Web fallback
-        const rawShifts = JSON.parse(localStorage.getItem('shifts') || '[]');
+        const key = (() => {
+          try {
+            const userRaw = window.localStorage.getItem('userData');
+            const user = userRaw ? JSON.parse(userRaw) : null;
+            const userId = user?.id || user?.email || null;
+            return userId ? `shifts_${userId}` : 'shifts';
+          } catch {
+            return 'shifts';
+          }
+        })();
+        const rawShifts = JSON.parse(localStorage.getItem(key) || '[]');
         const existingShifts = Array.isArray(rawShifts) ? rawShifts : [];
         
         if (editingShift) {
@@ -636,7 +664,11 @@ export default function Venues() {
           existingShifts.push(newShift);
         }
         
-        localStorage.setItem('shifts', JSON.stringify(existingShifts));
+        try {
+          localStorage.setItem(key, JSON.stringify(existingShifts));
+        } catch {
+          localStorage.setItem('shifts', JSON.stringify(existingShifts));
+        }
       }
 
       await loadShifts();
@@ -671,10 +703,20 @@ export default function Venues() {
                 await deleteShift(db, shift.id);
               } else {
                 // Web fallback
-                const rawShifts = JSON.parse(localStorage.getItem('shifts') || '[]');
+                const key = (() => {
+                  try {
+                    const userRaw = window.localStorage.getItem('userData');
+                    const user = userRaw ? JSON.parse(userRaw) : null;
+                    const userId = user?.id || user?.email || null;
+                    return userId ? `shifts_${userId}` : 'shifts';
+                  } catch {
+                    return 'shifts';
+                  }
+                })();
+                const rawShifts = JSON.parse(localStorage.getItem(key) || '[]');
                 const existingShifts = Array.isArray(rawShifts) ? rawShifts : [];
                 const filtered = existingShifts.filter(s => s.id !== shift.id);
-                localStorage.setItem('shifts', JSON.stringify(filtered));
+                try { localStorage.setItem(key, JSON.stringify(filtered)); } catch { localStorage.setItem('shifts', JSON.stringify(filtered)); }
               }
               
               await loadShifts();

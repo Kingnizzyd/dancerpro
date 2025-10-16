@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { openDb, getRecentTransactions, computeTransactionTotals, insertTransaction, updateTransaction, deleteTransaction, getAllClients, getAllVenues, getAllOutfits } from '../lib/db';
-import { GradientCard, GradientButton, ModernInput, Toast, Tag, Segmented } from '../components/UI';
+import { GradientCard, GradientButton, ModernInput, Toast } from '../components/UI';
 import { Colors } from '../constants/Colors';
 import { formatCurrency } from '../utils/formatters';
 
@@ -185,16 +185,12 @@ export default function TransactionManager() {
         style={styles.input}
       />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tagList}>
-        <TouchableOpacity onPress={() => onSelect(null)}>
-          <Tag style={[styles.tagChip, selectedId === null && styles.tagChipSelected]}>
-            <Text style={styles.tagText}>None</Text>
-          </Tag>
+        <TouchableOpacity onPress={() => onSelect(null)} style={[styles.tag, selectedId === null && styles.tagSelected]}>
+          <Text style={styles.tagText}>None</Text>
         </TouchableOpacity>
         {options.map(opt => (
-          <TouchableOpacity key={opt.id} onPress={() => onSelect(opt.id)}>
-            <Tag style={[styles.tagChip, selectedId === opt.id && styles.tagChipSelected]}>
-              <Text style={styles.tagText}>{opt.name || opt.title || 'Unnamed'}</Text>
-            </Tag>
+          <TouchableOpacity key={opt.id} onPress={() => onSelect(opt.id)} style={[styles.tag, selectedId === opt.id && styles.tagSelected]}>
+            <Text style={styles.tagText}>{opt.name || opt.title || 'Unnamed'}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -203,7 +199,7 @@ export default function TransactionManager() {
 
   return (
     <ScrollView style={styles.container}>
-      <GradientCard variant="glow" style={styles.summaryCard}>
+      <GradientCard variant="minimal" style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Total Income</Text>
@@ -244,15 +240,14 @@ export default function TransactionManager() {
 
             <View style={styles.formSection}>
               <Text style={styles.sectionLabel}>Type</Text>
-              <Segmented
-                options={[
-                  { label: 'Income', value: 'income' },
-                  { label: 'Expense', value: 'expense' },
-                ]}
-                value={formData.type}
-                onChange={(v) => setFormData({ ...formData, type: v })}
-                style={styles.typeSegment}
-              />
+              <View style={styles.typeRow}>
+                <TouchableOpacity onPress={() => setFormData({ ...formData, type: 'income' })} style={[styles.typeButton, formData.type === 'income' && styles.typeButtonActive]}>
+                  <Text style={styles.typeButtonText}>Income</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setFormData({ ...formData, type: 'expense' })} style={[styles.typeButton, formData.type === 'expense' && styles.typeButtonActive]}>
+                  <Text style={styles.typeButtonText}>Expense</Text>
+                </TouchableOpacity>
+              </View>
 
               <ModernInput
                 placeholder="Amount"
@@ -276,6 +271,7 @@ export default function TransactionManager() {
                 style={styles.input}
               />
 
+              {/* Tag selectors */}
               {clients.length > 0 && (
                 <TagSelector
                   label="Clients"
@@ -354,7 +350,6 @@ const styles = StyleSheet.create({
   typeButton: { flex: 1, paddingVertical: Colors.spacing.sm, borderWidth: 1, borderColor: Colors.border, borderRadius: Colors.borderRadius.md, alignItems: 'center' },
   typeButtonActive: { borderColor: Colors.primary },
   typeButtonText: { color: Colors.text },
-  typeSegment: { marginTop: Colors.spacing.sm },
   input: { marginTop: Colors.spacing.sm },
 
   tagSection: { marginTop: Colors.spacing.md },
@@ -362,8 +357,6 @@ const styles = StyleSheet.create({
   tag: { paddingHorizontal: Colors.spacing.md, paddingVertical: Colors.spacing.xs, borderWidth: 1, borderColor: Colors.border, borderRadius: Colors.borderRadius.round, marginRight: Colors.spacing.xs },
   tagSelected: { borderColor: Colors.primary, backgroundColor: Colors.surfaceAccent },
   tagText: { color: Colors.text },
-  tagChip: { marginRight: Colors.spacing.xs },
-  tagChipSelected: { borderColor: Colors.borderAccent, backgroundColor: Colors.surfaceAccent },
 
   modalActions: { flexDirection: 'row', gap: Colors.spacing.md, marginTop: Colors.spacing.lg },
   cancelButton: { flex: 1 },

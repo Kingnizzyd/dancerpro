@@ -82,7 +82,16 @@ export default function Shifts({ route }) {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const raw = window.localStorage.getItem('shifts');
+      let raw = null;
+      try {
+        const userRaw = window.localStorage.getItem('userData');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const userId = user?.id || user?.email || null;
+        const key = userId ? `shifts_${userId}` : 'shifts';
+        raw = window.localStorage.getItem(key);
+      } catch {
+        raw = window.localStorage.getItem('shifts');
+      }
       if (raw) {
         try {
           const saved = JSON.parse(raw);
@@ -123,7 +132,19 @@ export default function Shifts({ route }) {
       })();
     } else {
       try {
-        const raw = (typeof window !== 'undefined' && window.localStorage) ? window.localStorage.getItem('clients') : null;
+        const raw = (typeof window !== 'undefined' && window.localStorage)
+          ? (() => {
+              try {
+                const userRaw = window.localStorage.getItem('userData');
+                const user = userRaw ? JSON.parse(userRaw) : null;
+                const userId = user?.id || user?.email || null;
+                const key = userId ? `clients_${userId}` : 'clients';
+                return window.localStorage.getItem(key);
+              } catch {
+                return window.localStorage.getItem('clients');
+              }
+            })()
+          : null;
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length) setClientOptions(parsed);
@@ -136,6 +157,37 @@ export default function Shifts({ route }) {
       }
     }
   }, []);
+
+  // Initialize client filter from route or persisted storage (user-scoped)
+  useEffect(() => {
+    const cid = route?.params?.clientId;
+    if (cid) {
+      setClientFilterId(cid);
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const userRaw = window.localStorage.getItem('userData');
+          const user = userRaw ? JSON.parse(userRaw) : null;
+          const userId = user?.id || user?.email || null;
+          const key = userId ? `clientFilterId_${userId}` : 'clientFilterId';
+          window.localStorage.setItem(key, cid);
+        } catch {
+          try { window.localStorage.setItem('clientFilterId', cid); } catch {}
+        }
+      }
+    } else if (typeof window !== 'undefined' && window.localStorage) {
+      let saved = null;
+      try {
+        const userRaw = window.localStorage.getItem('userData');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const userId = user?.id || user?.email || null;
+        const key = userId ? `clientFilterId_${userId}` : 'clientFilterId';
+        saved = window.localStorage.getItem(key);
+      } catch {
+        try { saved = window.localStorage.getItem('clientFilterId'); } catch {}
+      }
+      if (saved) setClientFilterId(saved);
+    }
+  }, [route?.params?.clientId]);
 
   function applyClientFilter(list) {
     if (!clientFilterId) return list;
@@ -215,7 +267,15 @@ export default function Shifts({ route }) {
         const nextList = items.filter(item => item.id !== shiftId);
         setItems(nextList);
         if (typeof window !== 'undefined' && window.localStorage) {
-          try { window.localStorage.setItem('shifts', JSON.stringify(nextList)); } catch {}
+          try {
+            const userRaw = window.localStorage.getItem('userData');
+            const user = userRaw ? JSON.parse(userRaw) : null;
+            const userId = user?.id || user?.email || null;
+            const key = userId ? `shifts_${userId}` : 'shifts';
+            window.localStorage.setItem(key, JSON.stringify(nextList));
+          } catch {
+            try { window.localStorage.setItem('shifts', JSON.stringify(nextList)); } catch {}
+          }
         }
       }
       setToast({ message: 'Shift deleted', type: 'success', visible: true });

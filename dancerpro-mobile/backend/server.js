@@ -384,6 +384,13 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString(), version, environment });
 });
 
+// Alias for health under /api for frontend helper that prefixes API routes
+app.get('/api/health', (req, res) => {
+  const version = process.env.APP_VERSION || 'dev';
+  const environment = process.env.NODE_ENV || 'development';
+  res.json({ status: 'OK', timestamp: new Date().toISOString(), version, environment });
+});
+
 // Authentication endpoints
 // Register new user
 app.post('/api/auth/register', registerRateLimiter, async (req, res) => {
@@ -1128,8 +1135,8 @@ app.get('/api/sync/status', authenticateToken, (req, res) => {
   }
 });
 
-// Send SMS endpoint
-app.post('/api/send-sms', async (req, res) => {
+// Send SMS endpoint (secured)
+app.post('/api/send-sms', authenticateToken, async (req, res) => {
   try {
     const { to, body, clientId, message: incomingMessage } = req.body;
     const smsBody = body || incomingMessage;
@@ -1330,7 +1337,8 @@ app.post('/api/disconnect', (req, res) => {
 });
 
 // Get conversation history endpoint
-app.get('/api/conversations/:phoneNumber', async (req, res) => {
+// Get conversation history (secured)
+app.get('/api/conversations/:phoneNumber', authenticateToken, async (req, res) => {
   try {
     const { phoneNumber } = req.params;
     const { limit = 50 } = req.query;
@@ -1371,6 +1379,110 @@ app.get('/api/conversations/:phoneNumber', async (req, res) => {
       error: 'Failed to fetch conversation history', 
       details: error.message 
     });
+  }
+});
+
+// Voice: TwiML bridge to dial client, masking numbers
+app.get('/api/voice/bridge', async (req, res) => {
+  try {
+    const clientPhone = req.query.clientPhone;
+    const record = String(req.query.record || 'false') === 'true';
+    if (!clientPhone) {
+      return res.status(400).send('Missing clientPhone');
+    }
+
+    const twiml = new twilio.twiml.VoiceResponse();
+    const dial = twiml.dial({ callerId: twilioPhoneNumber, record: record ? 'record-from-answer' : 'do-not-record' });
+    dial.number(clientPhone);
+    res.type('text/xml').send(twiml.toString());
+  } catch (error) {
+    console.error('Error generating voice bridge TwiML:', error);
+    res.status(500).send('Error generating TwiML');
+  }
+});
+
+// Start masked call between user and client
+app.post('/api/calls/start', authenticateToken, async (req, res) => {
+  try {
+    const { clientPhone, record = false } = req.body;
+    if (!clientPhone) {
+      return res.status(400).json({ error: 'Missing required field: clientPhone' });
+    }
+
+    // Find calling user's phone number to bridge
+    const users = readUsers();
+    const me = users.find(u => String(u.id) === String(req.user.id)) || users.find(u => u.email === req.user.email);
+    const userPhone = me?.phoneNumber || me?.phone;
+    if (!userPhone) {
+      return res.status(400).json({ error: 'Your profile has no phoneNumber set' });
+    }
+
+    // First leg: call the user, then bridge to client via TwiML
+    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+    const call = await client.calls.create({
+      to: userPhone,
+      from: twilioPhoneNumber,
+      url: `${baseUrl}/api/voice/bridge?clientPhone=${encodeURIComponent(clientPhone)}&record=${record ? 'true' : 'false'}`,
+      statusCallback: `${baseUrl}/api/voice/status`,
+      statusCallbackEvent: ['queued','initiated','ringing','answered','completed'],
+    });
+
+    // Broadcast via sockets for UI updates
+    io.emit('call_started', {
+      callSid: call.sid,
+      to: clientPhone,
+      from: userPhone,
+      timestamp: new Date().toISOString()
+    });
+
+    return res.json({ success: true, callSid: call.sid, status: call.status });
+  } catch (error) {
+    console.error('Error starting call:', error);
+    return res.status(500).json({ error: 'Failed to start call', details: error.message });
+  }
+});
+
+// Voice status webhook (Twilio -> server)
+app.post('/api/voice/status', (req, res) => {
+  try {
+    const { CallSid, CallStatus, To, From } = req.body;
+    io.emit('call_status_update', {
+      callSid: CallSid,
+      status: CallStatus,
+      to: To,
+      from: From,
+      timestamp: new Date().toISOString()
+    });
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('Error processing voice status:', error);
+    res.status(500).send('Error processing voice status');
+  }
+});
+
+// Call history (secured)
+app.get('/api/calls/history/:phoneNumber', authenticateToken, async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+    const { limit = 50 } = req.query;
+    const outgoing = await client.calls.list({ to: phoneNumber, limit: parseInt(limit) });
+    const incoming = await client.calls.list({ from: phoneNumber, limit: parseInt(limit) });
+    const all = [...outgoing, ...incoming]
+      .sort((a,b) => new Date(a.startTime || a.dateCreated) - new Date(b.startTime || b.dateCreated))
+      .map(c => ({
+        sid: c.sid,
+        status: c.status,
+        from: c.from,
+        to: c.to,
+        startTime: c.startTime || c.dateCreated,
+        endTime: c.endTime || null,
+        duration: c.duration || null,
+        direction: c.direction || (c.to === phoneNumber ? 'inbound' : 'outbound')
+      }));
+    res.json({ success: true, calls: all, total: all.length });
+  } catch (error) {
+    console.error('Error fetching call history:', error);
+    res.status(500).json({ error: 'Failed to fetch call history', details: error.message });
   }
 });
 

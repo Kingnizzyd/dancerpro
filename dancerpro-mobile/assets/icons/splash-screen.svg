@@ -1,0 +1,63 @@
+<svg width="1242" height="2436" viewBox="0 0 1242 2436" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="splashGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A0A0A"/>
+      <stop offset="30%" stop-color="#1E1E1E"/>
+      <stop offset="70%" stop-color="#2A1F2A"/>
+      <stop offset="100%" stop-color="#3A2A3A"/>
+    </linearGradient>
+    
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B19CD9"/>
+      <stop offset="50%" stop-color="#D4C4E8"/>
+      <stop offset="100%" stop-color="#E8A87C"/>
+    </linearGradient>
+    
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="20" result="blur"/>
+      <feComposite in="blur" in2="SourceAlpha" operator="in" result="glow"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1242" height="2436" fill="url(#splashGradient)"/>
+  
+  <!-- Decorative elements -->
+  <circle cx="200" cy="400" r="80" fill="#FF1493" opacity="0.1" filter="url(#softGlow)"/>
+  <circle cx="1000" cy="800" r="120" fill="#00BFFF" opacity="0.08" filter="url(#softGlow)"/>
+  <circle cx="300" cy="1800" r="100" fill="#00FF7F" opacity="0.06" filter="url(#softGlow)"/>
+  <circle cx="900" cy="2000" r="60" fill="#FFFF00" opacity="0.05" filter="url(#softGlow)"/>
+  
+  <!-- Main app icon centered -->
+  <g transform="translate(621, 1218) scale(2.5)">
+    <circle cx="0" cy="0" r="120" fill="url(#iconGradient)" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round"/>
+    
+    <!-- Simplified dancer silhouette -->
+    <path d="M-60,-40 Q-80,-20 -60,0 Q-40,20 -20,0 Q0,-20 20,-40" 
+          stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" fill="none"/>
+    
+    <path d="M60,-40 Q80,-20 60,0 Q40,20 20,0 Q0,-20 -20,-40" 
+          stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" fill="none"/>
+    
+    <!-- Business element -->
+    <rect x="-20" y="10" width="40" height="20" fill="#FF6B9D" rx="4" stroke="#FFFFFF" stroke-width="2"/>
+    <text x="0" y="25" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="14" font-weight="bold">$</text>
+    
+    <!-- Glow effect -->
+    <circle cx="0" cy="0" r="140" fill="#FF1493" fill-opacity="0.05" filter="url(#softGlow)"/>
+  </g>
+  
+  <!-- App name -->
+  <text x="621" y="1600" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="64" font-weight="bold" letter-spacing="2">DancerPro</text>
+  
+  <!-- Tagline -->
+  <text x="621" y="1680" text-anchor="middle" fill="#B19CD9" font-family="Arial, sans-serif" font-size="28" font-weight="300" letter-spacing="1">Professional Business Management</text>
+  
+  <!-- Loading indicator -->
+  <circle cx="621" cy="1900" r="30" fill="none" stroke="#FF6B9D" stroke-width="3" stroke-dasharray="30,15" stroke-dashoffset="0">
+    <animate attributeName="stroke-dashoffset" from="0" to="45" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+  
+  <!-- Copyright -->
+  <text x="621" y="2350" text-anchor="middle" fill="#666666" font-family="Arial, sans-serif" font-size="18" font-weight="300">© 2024 DancerPro</text>
+</svg>

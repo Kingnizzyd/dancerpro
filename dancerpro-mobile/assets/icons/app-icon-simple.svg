@@ -1,0 +1,28 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="simpleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B19CD9"/>
+      <stop offset="50%" stop-color="#D4C4E8"/>
+      <stop offset="100%" stop-color="#E8A87C"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <circle cx="256" cy="256" r="240" fill="#0A0A0A"/>
+  
+  <!-- Simplified dancer silhouette -->
+  <circle cx="256" cy="256" r="120" fill="url(#simpleGradient)" stroke="#FFFFFF" stroke-width="4"/>
+  
+  <!-- Elegant curves representing dancer -->
+  <path d="M196,196 Q176,216 196,236 Q216,256 236,236 Q256,216 276,196" 
+        stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" fill="none"/>
+  
+  <path d="M196,316 Q176,296 196,276 Q216,256 236,276 Q256,296 276,316" 
+        stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" fill="none"/>
+  
+  <!-- Business element (simple dollar sign) -->
+  <text x="256" y="270" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="48" font-weight="bold">$</text>
+  
+  <!-- Outer ring -->
+  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#simpleGradient)" stroke-width="8"/>
+</svg>

@@ -308,17 +308,52 @@ export async function getClientShifts(_db, clientId, days = 120, limit = 10) {
 }
 
 export async function getClientPerformance(_db, clientId, days = 120) {
-  const tx = readLocal('transactions');
+  // Compute performance based on shifts tied to this client within the range
+  const shifts = readLocal('shifts');
   const { start, end } = lastNDaysDateRange(days);
-  const filtered = tx.filter(t => {
-    const dStr = t.date || t.createdAt || null;
+  const clientShifts = shifts.filter(s => {
+    const dStr = s.start || s.end || s.date || null;
     const d = dStr ? new Date(dStr) : null;
     if (!d) return false;
     const within = d >= start && d <= end;
-    return within && (t.clientId === clientId);
+    return within && (s.clientId === clientId);
   });
-  const totals = computeTransactionTotals(filtered);
-  return { clientId, days, totalIncome: totals.income, totalExpense: totals.expense, net: totals.net };
+
+  const shiftCount = clientShifts.length;
+  const totalEarnings = clientShifts.reduce((acc, s) => acc + Number(s.earnings || 0), 0);
+  const avgEarnings = shiftCount ? totalEarnings / shiftCount : 0;
+
+  // Best day-of-week by average earnings
+  const byDow = new Map();
+  clientShifts.forEach(s => {
+    const d = new Date(s.start || s.date || Date.now());
+    const dow = d.getDay();
+    const list = byDow.get(dow) || [];
+    list.push(Number(s.earnings || 0));
+    byDow.set(dow, list);
+  });
+  let bestDay = null; let bestDayAvg = 0;
+  byDow.forEach((list, dow) => {
+    const avg = list.length ? list.reduce((a, b) => a + b, 0) / list.length : 0;
+    if (avg > bestDayAvg) { bestDayAvg = avg; bestDay = dow; }
+  });
+
+  // Build simple earnings history by day for small chart in UI
+  const daily = new Map();
+  clientShifts.forEach(s => {
+    const d = new Date(s.start || s.date || Date.now());
+    const key = d.toISOString().slice(0, 10);
+    daily.set(key, (daily.get(key) || 0) + Number(s.earnings || 0));
+  });
+  const earningsHistory = Array.from(daily.entries())
+    .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+    .map(([date, value]) => {
+      const d = new Date(date);
+      const label = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+      return { label, value };
+    });
+
+  return { clientId, days, shiftCount, totalEarnings, avgEarnings, bestDay, bestDayAvg, earningsHistory };
 }
 
 export async function getClientTransactions(_db, clientId, days = 30) {
@@ -419,4 +454,58 @@ export async function importAllDataSnapshot(_db, snapshot) {
   writeLocal('outfits', Array.isArray(safe.outfits) ? safe.outfits : []);
   writeLocal('events', Array.isArray(safe.events) ? safe.events : []);
   return true;
+}
+// Update an existing transaction by id
+export async function updateTransaction(_db, payload) {
+  const list = readLocal('transactions');
+  if (!payload || !payload.id) return null;
+  const next = list.map(t => t.id === payload.id ? { ...t, ...payload } : t);
+  writeLocal('transactions', next);
+  return next.find(t => t.id === payload.id) || null;
+}
+
+// AI Reports
+// Get all AI reports, sorted by most recent first
+export async function getAiReports(_db) {
+  const reports = readLocal('aiReports');
+  return reports.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+// Insert a new AI report
+export async function insertAiReport(_db, payload) {
+  const list = readLocal('aiReports');
+  const id = payload.id || `air_${Date.now()}`;
+  const row = { 
+    id, 
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...payload 
+  };
+  writeLocal('aiReports', [row, ...list]);
+  return row;
+}
+
+// Update an existing AI report
+export async function updateAiReport(_db, payload) {
+  const list = readLocal('aiReports');
+  const next = list.map(r => r.id === payload.id ? { 
+    ...r, 
+    ...payload,
+    updatedAt: new Date().toISOString()
+  } : r);
+  writeLocal('aiReports', next);
+  return next.find(r => r.id === payload.id) || null;
+}
+
+// Delete an AI report by id
+export async function deleteAiReport(_db, id) {
+  const list = readLocal('aiReports');
+  writeLocal('aiReports', list.filter(r => r.id !== id));
+  return true;
+}
+
+// Get a specific AI report by id
+export async function getAiReportById(_db, id) {
+  const list = readLocal('aiReports');
+  return list.find(r => r.id === id) || null;
 }

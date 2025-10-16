@@ -1,0 +1,46 @@
+redirectsOrigin = "config"
+plugins = []
+functionsDirectory = "C:\\Users\\hasbe\\dancerpro\\netlify\\functions"
+functionsDirectoryOrigin = "config-v1"
+headers = []
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "C:\\Users\\hasbe\\dancerpro\\dist"
+publishOrigin = "config"
+commandOrigin = "config"
+command = "cd netlify/functions && npm install && cd ../.. && npx expo export -p web --output-dir dist && node scripts/process-figma-assets.js && node scripts/add-pwa-assets.js && node scripts/inject-backend-url.js && node scripts/copy-public.js"
+base = "C:\\Users\\hasbe\\dancerpro\\dancerpro-mobile"
+functions = "C:\\Users\\hasbe\\dancerpro\\netlify\\functions"
+
+[build.environment]
+EXPO_PUBLIC_BACKEND_URL = ""
+NODE_VERSION = "20"
+JWT_SECRET = "your-jwt-secret-key-here"
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]

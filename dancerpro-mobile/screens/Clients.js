@@ -3,10 +3,15 @@ import { View, Text, StyleSheet, FlatList, Animated, Platform, ScrollView, Touch
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { openDb, getAllClients, insertClient, updateClient, deleteClient, getKpiSnapshot, getClientPerformance, getRecentShifts, getClientTransactions, insertTransaction } from '../lib/db';
+import { seedPerformanceForExistingClients } from '../lib/mockData';
 import { GradientButton, ModernInput, GradientCard, Toast } from '../components/UI';
 import { useNavigation } from '@react-navigation/native';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, isValidE164, toE164, prettyPhone } from '../utils/formatters';
+import { secureGet, secureSet } from '../lib/secureStorage';
 import { Colors } from '../constants/Colors';
+import { buildApiEndpoint, fetchWithTimeout, getAuthToken } from '../lib/http';
+import webSocketService from '../services/WebSocketService';
+import { BACKEND_URL } from '../lib/config';
 
 const { width } = Dimensions.get('window');
 
@@ -28,14 +33,23 @@ export default function Clients({ route }) {
   const [tagsStr, setTagsStr] = useState('');
   const [notes, setNotes] = useState('');
   const [toast, setToast] = useState({ message: '', type: 'info', visible: false });
+  const [canSeed, setCanSeed] = useState(false);
   
   // Transaction history state
   const [clientTransactions, setClientTransactions] = useState([]);
   const [showTransactionHistory, setShowTransactionHistory] = useState(false);
 
+  // Messaging and calling state
+  const [messageText, setMessageText] = useState('');
+  const [conversationMessages, setConversationMessages] = useState([]);
+  const [callLogs, setCallLogs] = useState([]);
+  const [loadingConversation, setLoadingConversation] = useState(false);
+  const [loadingCalls, setLoadingCalls] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [calling, setCalling] = useState(false);
+
   useEffect(() => {
     const db = openDb();
-    if (!db) return; // web fallback uses sample data
     (async () => {
       try {
         const rows = await getAllClients(db);
@@ -59,16 +73,39 @@ export default function Clients({ route }) {
     })();
   }, []);
 
+  // Determine if current user is allowed to seed mock performance (User 1 only)
+  useEffect(() => {
+    (async () => {
+      try {
+        let user = await secureGet('userData');
+        if (!user && typeof window !== 'undefined' && window.localStorage) {
+          try {
+            const raw = window.localStorage.getItem('userData');
+            user = raw ? JSON.parse(raw) : null;
+          } catch {}
+        }
+        const uid = user?.id || null;
+        setCanSeed(String(uid) === '1');
+      } catch {
+        setCanSeed(false);
+      }
+    })();
+  }, []);
+
   // Load persisted clients on web
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const raw = window.localStorage.getItem('clients');
-      if (raw) {
-        try {
+      try {
+        const userRaw = window.localStorage.getItem('userData');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const userId = user?.id || user?.email || null;
+        const key = userId ? `clients_${userId}` : 'clients';
+        const raw = window.localStorage.getItem(key);
+        if (raw) {
           const saved = JSON.parse(raw);
           if (Array.isArray(saved)) setItems(saved);
-        } catch {}
-      }
+        }
+      } catch {}
     }
   }, []);
 
@@ -77,7 +114,16 @@ export default function Clients({ route }) {
     const clientIdParam = route?.params?.clientId;
     let clientId = clientIdParam;
     if (!clientId && typeof window !== 'undefined' && window.localStorage) {
-      try { clientId = window.localStorage.getItem('clientDetailId') || clientId; } catch {}
+      try {
+        const userRaw = window.localStorage.getItem('userData');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const userId = user?.id || user?.email || null;
+        const key = userId ? `clientDetailId_${userId}` : 'clientDetailId';
+        const saved = window.localStorage.getItem(key);
+        if (saved) clientId = saved;
+      } catch {
+        try { clientId = window.localStorage.getItem('clientDetailId') || clientId; } catch {}
+      }
     }
     if (!clientId) return;
     const found = (items || []).find(c => c.id === clientId);
@@ -93,6 +139,24 @@ export default function Clients({ route }) {
     setValueScore('');
     setTagsStr('');
     setNotes('');
+  }
+
+  async function handleSeedPerformance() {
+    try {
+      setToast({ visible: true, type: 'info', message: 'Generating mock performance…' });
+      await seedPerformanceForExistingClients({ months: 4 });
+      const db = openDb();
+      const [clients, s] = await Promise.all([
+        getAllClients(db),
+        getKpiSnapshot(db),
+      ]);
+      setItems(Array.isArray(clients) ? clients : []);
+      setSnapshot(s || { byClient: [] });
+      setToast({ visible: true, type: 'success', message: 'Performance data generated.' });
+    } catch (e) {
+      console.warn('Seeding performance failed', e);
+      setToast({ visible: true, type: 'error', message: 'Failed to generate performance data.' });
+    }
   }
 
   async function handleSave() {
@@ -122,12 +186,28 @@ export default function Clients({ route }) {
         if (editId) {
           const next = items.map(c => c.id === editId ? { ...c, name, contact, valueScore: score, tags, notes } : c);
           setItems(next);
-          try { window.localStorage.setItem('clients', JSON.stringify(next)); } catch {}
+          try {
+            const userRaw = window.localStorage.getItem('userData');
+            const user = userRaw ? JSON.parse(userRaw) : null;
+            const userId = user?.id || user?.email || null;
+            const key = userId ? `clients_${userId}` : 'clients';
+            window.localStorage.setItem(key, JSON.stringify(next));
+          } catch {
+            try { window.localStorage.setItem('clients', JSON.stringify(next)); } catch {}
+          }
         } else {
           const id = `c_${Date.now()}`;
           const next = [{ id, name, contact, valueScore: score, tags, notes }, ...items];
           setItems(next);
-          try { window.localStorage.setItem('clients', JSON.stringify(next)); } catch {}
+          try {
+            const userRaw = window.localStorage.getItem('userData');
+            const user = userRaw ? JSON.parse(userRaw) : null;
+            const userId = user?.id || user?.email || null;
+            const key = userId ? `clients_${userId}` : 'clients';
+            window.localStorage.setItem(key, JSON.stringify(next));
+          } catch {
+            try { window.localStorage.setItem('clients', JSON.stringify(next)); } catch {}
+          }
         }
       }
       resetForm();
@@ -151,7 +231,15 @@ export default function Clients({ route }) {
       } else {
         const next = items.filter(c => c.id !== id);
         setItems(next);
-        try { window.localStorage.setItem('clients', JSON.stringify(next)); } catch {}
+        try {
+          const userRaw = window.localStorage.getItem('userData');
+          const user = userRaw ? JSON.parse(userRaw) : null;
+          const userId = user?.id || user?.email || null;
+          const key = userId ? `clients_${userId}` : 'clients';
+          window.localStorage.setItem(key, JSON.stringify(next));
+        } catch {
+          try { window.localStorage.setItem('clients', JSON.stringify(next)); } catch {}
+        }
       }
       setToast({ message: 'Client deleted', type: 'success', visible: true });
       setTimeout(() => setToast({ message: '', type: 'info', visible: false }), 2500);
@@ -184,6 +272,13 @@ export default function Clients({ route }) {
     setDetailOpen(true);
     // Load transaction history for this client
     loadClientTransactions(c.id);
+    // Load messaging and call history
+    const phone = extractPhoneNumber(c.contact);
+    if (phone) {
+      loadConversation(phone);
+      loadCallHistory(phone);
+      ensureSocketConnected();
+    }
   }
 
   async function loadClientTransactions(clientId) {
@@ -199,6 +294,252 @@ export default function Clients({ route }) {
     } catch (e) {
       console.warn('Failed to load client transactions', e);
       setClientTransactions([]);
+    }
+  }
+
+  function extractPhoneNumber(contactValue) {
+    try {
+      const raw = String(contactValue || '').trim();
+      const digits = raw.replace(/[^0-9+]/g, '');
+      return digits || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function loadConversation(phoneNumber) {
+    try {
+      setLoadingConversation(true);
+      const token = await getAuthToken();
+      const url = buildApiEndpoint(`conversations/${encodeURIComponent(phoneNumber)}`);
+      const res = await fetchWithTimeout(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      }, 12000);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to fetch conversation');
+      }
+      setConversationMessages(Array.isArray(data?.messages) ? data.messages : []);
+    } catch (e) {
+      console.warn('Conversation load failed', e);
+      setConversationMessages([]);
+    } finally {
+      setLoadingConversation(false);
+    }
+  }
+
+  async function loadCallHistory(phoneNumber) {
+    try {
+      setLoadingCalls(true);
+      const token = await getAuthToken();
+      const url = buildApiEndpoint(`calls/history/${encodeURIComponent(phoneNumber)}`);
+      const res = await fetchWithTimeout(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      }, 12000);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to fetch call history');
+      }
+      setCallLogs(Array.isArray(data?.calls) ? data.calls : []);
+    } catch (e) {
+      console.warn('Call history load failed', e);
+      setCallLogs([]);
+    } finally {
+      setLoadingCalls(false);
+    }
+  }
+
+  async function sendSms() {
+    try {
+      if (!detail) return;
+      const rawPhone = extractPhoneNumber(detail.contact);
+      const phone = toE164(rawPhone || '');
+      if (!phone || !isValidE164(phone)) {
+        setToast({ visible: true, type: 'error', message: 'Client phone must be valid E.164' });
+        return;
+      }
+      const body = String(messageText || '').trim();
+      if (!body) {
+        setToast({ visible: true, type: 'error', message: 'Message cannot be empty' });
+        return;
+      }
+      setSending(true);
+      const token = await getAuthToken();
+      const url = buildApiEndpoint('send-sms');
+      const res = await fetchWithTimeout(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ to: phone, body })
+      }, 15000);
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to send SMS');
+      }
+      setToast({ visible: true, type: 'success', message: 'Message sent' });
+      setMessageText('');
+      // Optimistically append
+      setConversationMessages((prev) => [
+        ...prev,
+        {
+          id: data.messageId || `local_${Date.now()}`,
+          body,
+          from: 'me',
+          to: phone,
+          status: data.status || 'queued',
+          timestamp: new Date().toISOString(),
+          direction: 'outbound'
+        }
+      ]);
+    } catch (e) {
+      console.warn('Send SMS failed', e);
+      setToast({ visible: true, type: 'error', message: 'Failed to send message' });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function startMaskedCall(record = false) {
+    try {
+      if (!detail) return;
+      const rawPhone = extractPhoneNumber(detail.contact);
+      const phone = toE164(rawPhone || '');
+      if (!phone || !isValidE164(phone)) {
+        setToast({ visible: true, type: 'error', message: 'Client phone must be valid E.164' });
+        return;
+      }
+      setCalling(true);
+      const token = await getAuthToken();
+      const url = buildApiEndpoint('calls/start');
+      const res = await fetchWithTimeout(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ clientPhone: phone, record })
+      }, 20000);
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to start call');
+      }
+      setToast({ visible: true, type: 'success', message: 'Call started' });
+      // Reload call history shortly after
+      setTimeout(() => loadCallHistory(phone), 2000);
+    } catch (e) {
+      console.warn('Start call failed', e);
+      setToast({ visible: true, type: 'error', message: 'Failed to start call' });
+    } finally {
+      setCalling(false);
+    }
+  }
+
+  const socketListenersRef = React.useRef(null);
+  const [showPrivacyBanner, setShowPrivacyBanner] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const dismissed = await secureGet('privacy_banner_dismissed');
+        if (!cancelled) setShowPrivacyBanner(!(dismissed === 'true'));
+      } catch {
+        if (!cancelled) setShowPrivacyBanner(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      // Cleanup any registered socket listeners on unmount
+      const l = socketListenersRef.current;
+      if (l) {
+        try {
+          webSocketService.off('new_message', l.onNewMessage);
+          webSocketService.off('message_received', l.onMessageReceived);
+          webSocketService.off('message_sent', l.onMessageSent);
+          webSocketService.off('message_status_update', l.onMessageStatusUpdate);
+          webSocketService.off('call_status_update', l.onCallStatus);
+        } catch {}
+      }
+      socketListenersRef.current = null;
+    };
+  }, []);
+
+  function ensureSocketConnected() {
+    try {
+      if (!webSocketService.isConnected()) {
+        webSocketService.connect(BACKEND_URL);
+      }
+      // Remove previous listeners to avoid duplicates
+      const existing = socketListenersRef.current;
+      if (existing) {
+        try {
+          webSocketService.off('new_message', existing.onNewMessage);
+          webSocketService.off('message_received', existing.onMessageReceived);
+          webSocketService.off('message_sent', existing.onMessageSent);
+          webSocketService.off('message_status_update', existing.onMessageStatusUpdate);
+          webSocketService.off('call_status_update', existing.onCallStatus);
+        } catch {}
+        socketListenersRef.current = null;
+      }
+      // Subscribe to events
+      const onNewMessage = (data) => {
+        if (!detail) return;
+        const rawPhone = extractPhoneNumber(detail.contact);
+        const phone = toE164(rawPhone || '');
+        // Append if relevant to current conversation
+        if (data?.to === phone || data?.from === phone) {
+          setConversationMessages((prev) => [...prev, {
+            id: data.messageId || `socket_${Date.now()}`,
+            body: data.body,
+            from: data.from || 'client',
+            to: data.to || phone,
+            status: data.status || 'received',
+            timestamp: data.timestamp || new Date().toISOString(),
+            direction: data.sender === 'dancer' ? 'outbound' : 'inbound'
+          }]);
+        }
+      };
+      const onMessageReceived = onNewMessage;
+      const onMessageSent = onNewMessage;
+      const onMessageStatusUpdate = (payload) => {
+        try {
+          // payload: { messageId, status, to, from, timestamp }
+          const next = (prev) => prev.map(m => {
+            if (!m) return m;
+            const matchById = payload?.messageId && m.id === payload.messageId;
+            const matchByToFrom = payload?.to && payload?.from && ((m.to === payload.to && m.from === payload.from) || (m.to === payload.from && m.from === payload.to));
+            if (matchById || matchByToFrom) {
+              return { ...m, status: payload.status || m.status, timestamp: payload.timestamp || m.timestamp };
+            }
+            return m;
+          });
+          setConversationMessages(next);
+        } catch {}
+      };
+      const onCallStatus = (data) => {
+        // We could update UI based on call status
+      };
+      webSocketService.on('new_message', onNewMessage);
+      webSocketService.on('message_received', onMessageReceived);
+      webSocketService.on('message_sent', onMessageSent);
+      webSocketService.on('message_status_update', onMessageStatusUpdate);
+      webSocketService.on('call_status_update', onCallStatus);
+      socketListenersRef.current = { onNewMessage, onMessageReceived, onMessageSent, onMessageStatusUpdate, onCallStatus };
+    } catch (e) {
+      console.warn('Socket connection failed', e);
     }
   }
 
@@ -264,6 +605,7 @@ export default function Clients({ route }) {
                 <Text style={styles.subheading}>Manage your client relationships</Text>
               </View>
             </View>
+            <View style={{ flexDirection: 'row', gap: Colors.spacing.sm }}>
             <GradientButton
               title="Add Client"
               variant="accent"
@@ -271,6 +613,15 @@ export default function Clients({ route }) {
               onPress={() => { resetForm(); setAddOpen(true); }}
               style={styles.addButton}
             />
+            {canSeed && (
+              <GradientButton
+                title="Generate Performance"
+                variant="primary"
+                size="small"
+                onPress={handleSeedPerformance}
+              />
+            )}
+            </View>
           </View>
         </LinearGradient>
       </View>
@@ -427,7 +778,7 @@ export default function Clients({ route }) {
                 </View>
                 <View style={styles.clientInfo}>
                   <Text style={styles.clientName}>{detail.name}</Text>
-                  <Text style={styles.clientContact}>{detail.contact || 'No contact info'}</Text>
+                  <Text style={styles.clientContact}>{prettyPhone(toE164(detail.contact || '') || detail.contact) || 'No contact info'}</Text>
                   {typeof detail.valueScore !== 'undefined' && detail.valueScore !== null && (
                     <View style={styles.scoreContainer}>
                       <Text style={styles.scoreLabel}>Value Score:</Text>
@@ -457,6 +808,63 @@ export default function Clients({ route }) {
                   <Text style={styles.notesLabel}>Notes:</Text>
                   <Text style={styles.notesText}>{detail.notes}</Text>
                 </View>
+              )}
+
+              {/* Messaging Section */}
+              {toE164(extractPhoneNumber(detail.contact) || '') ? (
+                <GradientCard variant="minimal" style={styles.messagingCard}>
+                  <Text style={styles.sectionTitle}>Messaging</Text>
+                  <View style={styles.composeRow}>
+                    <View style={{ flex: 1 }}>
+                      <ModernInput 
+                        label="Compose Message"
+                        placeholder="Type your message"
+                        value={messageText}
+                        onChangeText={setMessageText}
+                      />
+                    </View>
+                    <GradientButton 
+                      title={sending ? 'Sending…' : 'Send SMS'}
+                      variant="primary"
+                      onPress={sendSms}
+                      style={styles.composeButton}
+                    />
+                  </View>
+                  <View style={styles.historyContainerAlt}>
+                    <Text style={styles.historyTitle}>Conversation History</Text>
+                    {loadingConversation ? (
+                      <Text style={styles.loadingText}>Loading messages…</Text>
+                    ) : (
+                      <View style={styles.messageList}>
+                        {conversationMessages && conversationMessages.length > 0 ? (
+                          conversationMessages.slice(-20).map((m) => (
+                            <View key={m.id} style={[styles.messageItem, m.direction === 'outbound' ? styles.messageOutbound : styles.messageInbound]}>
+                              <Text style={styles.messageBody}>{m.body}</Text>
+                              <Text style={styles.messageMeta}>{new Date(m.timestamp).toLocaleString()} · {m.direction} · {m.status || '—'}</Text>
+                            </View>
+                          ))
+                        ) : (
+                          <Text style={styles.emptyTransactionText}>No messages yet</Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                </GradientCard>
+              ) : (
+                <GradientCard variant="minimal" style={styles.messagingCard}>
+                  <Text style={styles.sectionTitle}>Messaging</Text>
+                  <Text style={styles.emptyTransactionText}>Add a valid phone number to message this client.</Text>
+                </GradientCard>
+              )}
+
+              {/* Privacy banner below header */}
+              {showPrivacyBanner && (
+                <GradientCard variant="minimal" style={styles.privacyBanner}>
+                  <Text style={styles.privacyText}>Privacy: Messages and calls sync via Twilio. Learn more in Settings.</Text>
+                  <TouchableOpacity onPress={async () => { try { await secureSet('privacy_banner_dismissed', 'true'); } catch {} setShowPrivacyBanner(false); }}>
+                    <Text style={styles.privacyDismiss}>Dismiss</Text>
+                  </TouchableOpacity>
+                </GradientCard>
               )}
 
               {(function() {
@@ -490,7 +898,37 @@ export default function Clients({ route }) {
                   );
                 } catch { return null; }
               })()}
-              
+
+              {/* Call Logs Section */}
+              {toE164(extractPhoneNumber(detail.contact) || '') && (
+                <GradientCard variant="minimal" style={styles.callLogsCard}>
+                  <View style={styles.transactionHistoryHeader}>
+                    <Text style={styles.sectionTitle}>Call Logs ({callLogs.length})</Text>
+                    <Ionicons 
+                      name={loadingCalls ? "refresh" : "call"}
+                      size={20}
+                      color={Colors.accent}
+                    />
+                  </View>
+                  {loadingCalls ? (
+                    <Text style={styles.loadingText}>Loading call history…</Text>
+                  ) : (
+                    <View style={styles.callLogsList}>
+                      {callLogs.length > 0 ? (
+                        callLogs.slice(-10).map((c) => (
+                          <View key={c.sid} style={styles.callLogItem}>
+                            <Text style={styles.callLogStatus}>{c.status}</Text>
+                            <Text style={styles.callLogMeta}>{new Date(c.startTime).toLocaleString()} · {c.direction} {c.duration ? `· ${c.duration}s` : ''}</Text>
+                          </View>
+                        ))
+                      ) : (
+                        <Text style={styles.emptyTransactionText}>No recent calls</Text>
+                      )}
+                    </View>
+                  )}
+                </GradientCard>
+              )}
+
               {/* Transaction History Section */}
               <GradientCard variant="minimal" style={styles.transactionHistoryCard}>
                 <TouchableOpacity 
@@ -542,12 +980,28 @@ export default function Clients({ route }) {
                 onPress={() => {
                   if (!detail?.id) return;
                   if (typeof window !== 'undefined' && window.localStorage) {
-                    try { window.localStorage.setItem('clientFilterId', detail.id); } catch {}
+                    try {
+                      const userRaw = window.localStorage.getItem('userData');
+                      const user = userRaw ? JSON.parse(userRaw) : null;
+                      const userId = user?.id || user?.email || null;
+                      const key = userId ? `clientFilterId_${userId}` : 'clientFilterId';
+                      window.localStorage.setItem(key, detail.id);
+                    } catch {
+                      try { window.localStorage.setItem('clientFilterId', detail.id); } catch {}
+                    }
                   }
                   try { navigation.navigate('Shifts', { clientId: detail.id }); } catch {}
                 }}
                 style={styles.actionButton}
               />
+              {toE164(extractPhoneNumber(detail?.contact) || '') && (
+                <GradientButton
+                  title={calling ? 'Calling…' : 'Call Client'}
+                  variant="accent"
+                  onPress={() => startMaskedCall(false)}
+                  style={styles.actionButton}
+                />
+              )}
               <GradientButton 
                 title="Edit Client" 
                 variant="primary" 
@@ -592,7 +1046,7 @@ function ClientRow({ item, onEdit, onDelete, onView, onPerformance, expanded, pe
               </View>
               <View style={styles.clientDetails}>
                 <Text style={styles.clientName}>{item.name}</Text>
-                <Text style={styles.clientContact}>{item.contact || 'No contact info'}</Text>
+                  <Text style={styles.clientContact}>{prettyPhone(toE164(item.contact || '') || item.contact) || 'No contact info'}</Text>
                 {typeof item.valueScore !== 'undefined' && item.valueScore !== null && (
                   <View style={styles.scoreContainer}>
                     <Text style={styles.scoreLabel}>Score:</Text>
@@ -1199,5 +1653,89 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+  },
+  // Messaging styles
+  messagingCard: {
+    marginTop: Colors.spacing.md,
+  },
+  composeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: Colors.spacing.sm,
+    marginTop: Colors.spacing.sm,
+  },
+  composeButton: {
+    minWidth: 120,
+  },
+  historyContainerAlt: {
+    marginTop: Colors.spacing.md,
+  },
+  loadingText: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.sm,
+    fontStyle: 'italic',
+  },
+  messageList: {
+    gap: Colors.spacing.sm,
+  },
+  messageItem: {
+    padding: Colors.spacing.sm,
+    borderRadius: Colors.borderRadius.md,
+  },
+  messageInbound: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  messageOutbound: {
+    backgroundColor: 'rgba(199, 255, 0, 0.12)',
+  },
+  messageBody: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.sm,
+  },
+  messageMeta: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.xs,
+    marginTop: 4,
+  },
+  privacyBanner: {
+    marginTop: Colors.spacing.md,
+    paddingVertical: Colors.spacing.sm,
+    paddingHorizontal: Colors.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Colors.spacing.sm,
+  },
+  privacyText: {
+    color: Colors.textSecondary,
+    fontSize: Colors.typography.fontSize.xs,
+    flex: 1,
+  },
+  privacyDismiss: {
+    color: Colors.accent,
+    fontSize: Colors.typography.fontSize.xs,
+    fontWeight: Colors.typography.fontWeight.semibold,
+  },
+  // Call logs styles
+  callLogsCard: {
+    marginTop: Colors.spacing.md,
+  },
+  callLogsList: {
+    gap: Colors.spacing.sm,
+  },
+  callLogItem: {
+    paddingVertical: Colors.spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  callLogStatus: {
+    color: Colors.text,
+    fontSize: Colors.typography.fontSize.sm,
+    fontWeight: Colors.typography.fontWeight.medium,
+  },
+  callLogMeta: {
+    color: Colors.textMuted,
+    fontSize: Colors.typography.fontSize.xs,
+    marginTop: 2,
   },
 });

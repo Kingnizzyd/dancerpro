@@ -2,7 +2,7 @@
   "expo": {
     "name": "DancerPro",
     "slug": "dancerpro-mobile",
-    "version": "0.2.0",
+    "version": "2.5.0",
     "platforms": [
       "ios",
       "android",

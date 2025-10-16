@@ -1,71 +1,157 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, BorderRadius, Shadows, Spacing } from '../../constants/Colors';
 
-export const GradientCard = ({ 
+const GradientCard = ({ 
   children, 
-  style, 
-  variant = 'default', // 'default', 'accent', 'glow', 'minimal', 'warm', 'coral'
-  padding = 'medium', // 'small', 'medium', 'large'
+  style = {}, 
+  variant = 'primary', 
+  onPress,
+  animated = false,
+  hoverEffect = false,
   ...props 
 }) => {
+  const [scale] = useState(new Animated.Value(1));
+  const [opacity] = useState(new Animated.Value(1));
+
+  const handlePressIn = () => {
+    if (animated && onPress) {
+      Animated.parallel([
+        Animated.timing(scale, {
+          toValue: 0.98,
+          duration: 150,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.9,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  };
+
+  const handlePressOut = () => {
+    if (animated && onPress) {
+      Animated.parallel([
+        Animated.timing(scale, {
+          toValue: 1,
+          duration: 150,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  };
+
   const getGradientColors = () => {
     switch (variant) {
+      case 'secondary':
+        return [Colors.surfaceSecondary, Colors.surfaceTertiary];
       case 'accent':
         return [Colors.accent, Colors.accentSecondary];
       case 'warm':
-        return ['rgba(232, 168, 124, 0.15)', 'rgba(242, 196, 161, 0.08)', 'rgba(37, 37, 37, 0.95)'];
+        return [Colors.gradientWarmStart, Colors.gradientWarmEnd];
       case 'coral':
-        return ['rgba(255, 107, 157, 0.12)', 'rgba(125, 211, 252, 0.06)', 'rgba(37, 37, 37, 0.95)'];
+        return [Colors.gradientCoralStart, Colors.gradientCoralEnd];
       case 'glow':
-        return ['rgba(177, 156, 217, 0.12)', 'rgba(212, 196, 232, 0.06)', 'rgba(37, 37, 37, 0.95)'];
+        return [Colors.gradientGlowStart, Colors.gradientGlowEnd];
       case 'minimal':
-        return ['rgba(37, 37, 37, 0.98)', 'rgba(47, 47, 47, 0.95)'];
+        return ['transparent', 'transparent'];
+      case 'glass':
+        return ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)'];
+      case 'premium':
+        return [Colors.gradientPremiumStart, Colors.gradientPremiumEnd];
+      case 'vip':
+        return [Colors.gradientVipStart, Colors.gradientVipEnd];
+      case 'elite':
+        return [Colors.gradientEliteStart, Colors.gradientEliteEnd];
       default:
-        return ['rgba(37, 37, 37, 0.95)', 'rgba(42, 31, 42, 0.85)', 'rgba(37, 37, 37, 0.98)'];
+        return [Colors.gradientPrimary, Colors.gradientSecondary];
     }
   };
 
-  const getPadding = () => {
-    switch (padding) {
-      case 'small':
-        return Spacing.md;
-      case 'large':
-        return Spacing.xl;
-      default:
-        return Spacing.lg;
+  const getBorderStyle = () => {
+    if (variant === 'minimal') {
+      return {
+        borderWidth: 1,
+        borderColor: Colors.border,
+      };
     }
+    if (variant === 'glass') {
+      return {
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+      };
+    }
+    return {};
   };
 
-  const getCardStyle = () => {
-    const baseStyle = [styles.card];
-    
-    if (variant === 'glow') {
-      baseStyle.push(styles.cardGlow);
-    } else if (variant === 'accent') {
-      baseStyle.push(styles.cardAccent);
-    } else if (variant === 'warm') {
-      baseStyle.push(styles.cardWarm);
-    } else if (variant === 'coral') {
-      baseStyle.push(styles.cardCoral);
+  const getShadowStyle = () => {
+    if (variant === 'glass') {
+      return {
+        shadowColor: Colors.glow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 8,
+      };
     }
-
-    return baseStyle;
+    return {
+      shadowColor: Colors.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 6,
+    };
   };
 
-  return (
-    <View style={[getCardStyle(), style]} {...props}>
+  const content = (
+    <Animated.View
+      style={[
+        {
+          transform: [{ scale }],
+          opacity,
+        },
+      ]}
+    >
       <LinearGradient
         colors={getGradientColors()}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.gradient, { padding: getPadding() }]}
+        style={[
+          styles.card,
+          getBorderStyle(),
+          getShadowStyle(),
+          hoverEffect && styles.hoverEffect,
+          style,
+        ]}
+        {...props}
       >
         {children}
       </LinearGradient>
-    </View>
+    </Animated.View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity 
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={animated ? 1 : 0.7}
+      >
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return content;
 };
 
 const styles = StyleSheet.create({

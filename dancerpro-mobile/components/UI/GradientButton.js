@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Typography, BorderRadius, Shadows } from '../../constants/Colors';
 
@@ -75,12 +75,20 @@ export const GradientButton = ({
     return baseStyle;
   };
 
+  const handlePress = () => {
+    if (typeof onPress === 'function') {
+      onPress();
+    }
+  };
+
   return (
     <TouchableOpacity
       style={[getButtonStyle(), style]}
-      onPress={onPress}
+      onPress={handlePress}
       disabled={disabled}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={title}
       {...props}
     >
       <LinearGradient

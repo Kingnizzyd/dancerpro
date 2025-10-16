@@ -12,6 +12,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { secureSet, secureGet } from '../lib/secureStorage';
+import { seedMockDataForUser } from '../lib/mockData';
+import { openDb, importAllDataSnapshot } from '../lib/db';
 import { BACKEND_URL } from '../lib/config';
 import { Colors } from '../constants/Colors';
 import { Toast, GradientButton, GradientCard } from '../components/UI';
@@ -43,6 +45,14 @@ const LoginScreen = ({ navigation }) => {
       role: 'user',
       avatar: '👥',
       description: 'User Test Account'
+    },
+    {
+      id: '3',
+      email: 'user3@test.com',
+      name: 'Test User 3',
+      role: 'user',
+      avatar: '👤',
+      description: 'Unique Tester Account'
     }
   ];
 
@@ -76,9 +86,35 @@ const LoginScreen = ({ navigation }) => {
       await secureSet('authToken', mockToken);
       await secureSet('userData', JSON.stringify(userData));
       
-      // Initialize user data with sample data if needed
-      const { initializeUserData } = await import('../lib/db.js');
-      await initializeUserData(null);
+      if (String(account.id) === '1') {
+        // Seed comprehensive mock data for primary test profile (User 1)
+        await seedMockDataForUser('1', {
+          clients: 24,
+          venues: 5,
+          outfits: 10,
+          transactions: 120,
+          shifts: 120,
+          months: 6,
+        });
+        // Prevent duplicate dashboard auto-seeding
+        if (typeof window !== 'undefined' && window.localStorage) {
+          try { window.localStorage.setItem('mockSeedUser1', 'true'); } catch {}
+        }
+      } else {
+        // Keep secondary test profile (User 2) empty for fresh manual inputs
+        const db = openDb();
+        await importAllDataSnapshot(db, {
+          venues: [],
+          shifts: [],
+          transactions: [],
+          clients: [],
+          outfits: [],
+          events: [],
+        });
+        if (typeof window !== 'undefined' && window.localStorage) {
+          try { window.localStorage.removeItem(`mockSeedUser${account.id}`); } catch {}
+        }
+      }
       
       console.log('[Auth] Test account login successful (no authentication required):', account.email);
       

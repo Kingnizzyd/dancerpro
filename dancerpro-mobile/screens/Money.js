@@ -168,7 +168,17 @@ export default function Money({ route }) {
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
-        const raw = window.localStorage.getItem('moneyDays');
+        const raw = (() => {
+          try {
+            const userRaw = window.localStorage.getItem('userData');
+            const user = userRaw ? JSON.parse(userRaw) : null;
+            const userId = user?.id || user?.email || null;
+            const key = userId ? `moneyDays_${userId}` : 'moneyDays';
+            return window.localStorage.getItem(key);
+          } catch {
+            return window.localStorage.getItem('moneyDays');
+          }
+        })();
         const parsed = raw ? JSON.parse(raw) : null;
         if (parsed === 30 || parsed === 90 || parsed === 'all') setTxDays(parsed);
       } catch {}
@@ -176,7 +186,15 @@ export default function Money({ route }) {
   }, []);
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
-      try { window.localStorage.setItem('moneyDays', JSON.stringify(txDays)); } catch {}
+      try {
+        const userRaw = window.localStorage.getItem('userData');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const userId = user?.id || user?.email || null;
+        const key = userId ? `moneyDays_${userId}` : 'moneyDays';
+        window.localStorage.setItem(key, JSON.stringify(txDays));
+      } catch {
+        try { window.localStorage.setItem('moneyDays', JSON.stringify(txDays)); } catch {}
+      }
     }
   }, [txDays]);
 
@@ -192,7 +210,17 @@ export default function Money({ route }) {
     })();
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const raw = window.localStorage.getItem('clients');
+        const raw = (() => {
+          try {
+            const userRaw = window.localStorage.getItem('userData');
+            const user = userRaw ? JSON.parse(userRaw) : null;
+            const userId = user?.id || user?.email || null;
+            const key = userId ? `clients_${userId}` : 'clients';
+            return window.localStorage.getItem(key);
+          } catch {
+            return window.localStorage.getItem('clients');
+          }
+        })();
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) setClientOptions(parsed);
@@ -208,10 +236,20 @@ export default function Money({ route }) {
     }
   }, []);
 
-  // Load persisted filters and recent categories (web)
+  // Load persisted filters and recent categories (web, user-scoped)
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const raw = window.localStorage.getItem('moneyFilters');
+      const raw = (() => {
+        try {
+          const userRaw = window.localStorage.getItem('userData');
+          const user = userRaw ? JSON.parse(userRaw) : null;
+          const userId = user?.id || user?.email || null;
+          const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+          return window.localStorage.getItem(key);
+        } catch {
+          return window.localStorage.getItem('moneyFilters');
+        }
+      })();
       if (raw) {
         try {
           const f = JSON.parse(raw);
@@ -221,7 +259,17 @@ export default function Money({ route }) {
           setFilterClientId(f.filterClientId || '');
         } catch {}
       }
-      const cats = window.localStorage.getItem('recentCategories');
+      const cats = (() => {
+        try {
+          const userRaw = window.localStorage.getItem('userData');
+          const user = userRaw ? JSON.parse(userRaw) : null;
+          const userId = user?.id || user?.email || null;
+          const key = userId ? `recentCategories_${userId}` : 'recentCategories';
+          return window.localStorage.getItem(key);
+        } catch {
+          return window.localStorage.getItem('recentCategories');
+        }
+      })();
       if (cats) {
         try { setRecentCats(JSON.parse(cats) || []); } catch {}
       }
@@ -235,19 +283,45 @@ export default function Money({ route }) {
       setFilterClientId(clientIdParam);
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
-          const raw = window.localStorage.getItem('moneyFilters');
+          const raw = (() => {
+            try {
+              const userRaw = window.localStorage.getItem('userData');
+              const user = userRaw ? JSON.parse(userRaw) : null;
+              const userId = user?.id || user?.email || null;
+              const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+              return window.localStorage.getItem(key);
+            } catch {
+              return window.localStorage.getItem('moneyFilters');
+            }
+          })();
           const prev = raw ? JSON.parse(raw) : {};
-          window.localStorage.setItem('moneyFilters', JSON.stringify({ ...prev, filterClientId: clientIdParam }));
+          try {
+            const userRaw = window.localStorage.getItem('userData');
+            const user = userRaw ? JSON.parse(userRaw) : null;
+            const userId = user?.id || user?.email || null;
+            const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+            window.localStorage.setItem(key, JSON.stringify({ ...prev, filterClientId: clientIdParam }));
+          } catch {
+            window.localStorage.setItem('moneyFilters', JSON.stringify({ ...prev, filterClientId: clientIdParam }));
+          }
         }
       } catch {}
     }
   }, [route?.params?.clientId]);
 
-  // Persist filters (web)
+  // Persist filters (web, user-scoped)
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       const payload = { fromDate, toDate, filterCategory, filterClientId, filterVenueId };
-      window.localStorage.setItem('moneyFilters', JSON.stringify(payload));
+      try {
+        const userRaw = window.localStorage.getItem('userData');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const userId = user?.id || user?.email || null;
+        const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+        window.localStorage.setItem(key, JSON.stringify(payload));
+      } catch {
+        window.localStorage.setItem('moneyFilters', JSON.stringify(payload));
+      }
     }
   }, [fromDate, toDate, filterCategory, filterClientId, filterVenueId]);
 
@@ -296,13 +370,21 @@ export default function Money({ route }) {
         setLastAdded(created);
         
         // Update recent categories
-        if (category && !recentCats.includes(category)) {
-          const newCats = [category, ...recentCats.slice(0, 9)];
-          setRecentCats(newCats);
-          if (typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.setItem('recentCategories', JSON.stringify(newCats));
+          if (category && !recentCats.includes(category)) {
+            const newCats = [category, ...recentCats.slice(0, 9)];
+            setRecentCats(newCats);
+            if (typeof window !== 'undefined' && window.localStorage) {
+              try {
+                const userRaw = window.localStorage.getItem('userData');
+                const user = userRaw ? JSON.parse(userRaw) : null;
+                const userId = user?.id || user?.email || null;
+                const key = userId ? `recentCategories_${userId}` : 'recentCategories';
+                window.localStorage.setItem(key, JSON.stringify(newCats));
+              } catch {
+                window.localStorage.setItem('recentCategories', JSON.stringify(newCats));
+              }
+            }
           }
-        }
         
         setSuccess(`${type === 'income' ? 'Income' : 'Expense'} of ${formatCurrency(tx.amount)} added successfully${outfitId ? ' and linked to outfit' : ''}`);
       } else {
@@ -317,7 +399,15 @@ export default function Money({ route }) {
           const newCats = [category, ...recentCats.slice(0, 9)];
           setRecentCats(newCats);
           if (typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.setItem('recentCategories', JSON.stringify(newCats));
+            try {
+              const userRaw = window.localStorage.getItem('userData');
+              const user = userRaw ? JSON.parse(userRaw) : null;
+              const userId = user?.id || user?.email || null;
+              const key = userId ? `recentCategories_${userId}` : 'recentCategories';
+              window.localStorage.setItem(key, JSON.stringify(newCats));
+            } catch {
+              window.localStorage.setItem('recentCategories', JSON.stringify(newCats));
+            }
           }
         }
         
@@ -437,7 +527,15 @@ export default function Money({ route }) {
                   const nextCats = Array.from(new Set([c, ...recentCats])).slice(0, 20);
                   setRecentCats(nextCats);
                   if (typeof window !== 'undefined' && window.localStorage) {
-                    window.localStorage.setItem('recentCategories', JSON.stringify(nextCats));
+                    try {
+                      const userRaw = window.localStorage.getItem('userData');
+                      const user = userRaw ? JSON.parse(userRaw) : null;
+                      const userId = user?.id || user?.email || null;
+                      const key = userId ? `recentCategories_${userId}` : 'recentCategories';
+                      window.localStorage.setItem(key, JSON.stringify(nextCats));
+                    } catch {
+                      window.localStorage.setItem('recentCategories', JSON.stringify(nextCats));
+                    }
                   }
                 } catch {}
               }}
@@ -450,7 +548,7 @@ export default function Money({ route }) {
                     <Text style={styles.suggestionRow}>🔖 {c}</Text>
                   </TouchableOpacity>
                 ))}
-                <Button label="Clear suggestions" variant="ghost" onPress={() => { setRecentCats([]); if (typeof window !== 'undefined' && window.localStorage) window.localStorage.removeItem('recentCategories'); }} />
+                <Button label="Clear suggestions" variant="ghost" onPress={() => { setRecentCats([]); if (typeof window !== 'undefined' && window.localStorage) { try { const userRaw = window.localStorage.getItem('userData'); const user = userRaw ? JSON.parse(userRaw) : null; const userId = user?.id || user?.email || null; const key = userId ? `recentCategories_${userId}` : 'recentCategories'; window.localStorage.removeItem(key); } catch { window.localStorage.removeItem('recentCategories'); } } }} />
               </View>
             ) : null}
             <Input placeholder="YYYY-MM-DD" value={date} onChangeText={setDate} />
@@ -507,7 +605,15 @@ export default function Money({ route }) {
             setSortAsc(next);
             try {
               if (typeof window !== 'undefined' && window.localStorage) {
-                window.localStorage.setItem('moneySortAsc', JSON.stringify(next));
+                try {
+                  const userRaw = window.localStorage.getItem('userData');
+                  const user = userRaw ? JSON.parse(userRaw) : null;
+                  const userId = user?.id || user?.email || null;
+                  const key = userId ? `moneySortAsc_${userId}` : 'moneySortAsc';
+                  window.localStorage.setItem(key, JSON.stringify(next));
+                } catch {
+                  window.localStorage.setItem('moneySortAsc', JSON.stringify(next));
+                }
               }
             } catch {}
           }}
@@ -528,9 +634,27 @@ export default function Money({ route }) {
               setFilterVenueId('');
               try {
                 if (typeof window !== 'undefined' && window.localStorage) {
-                  const raw = window.localStorage.getItem('moneyFilters');
+                  const raw = (() => {
+                    try {
+                      const userRaw = window.localStorage.getItem('userData');
+                      const user = userRaw ? JSON.parse(userRaw) : null;
+                      const userId = user?.id || user?.email || null;
+                      const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+                      return window.localStorage.getItem(key);
+                    } catch {
+                      return window.localStorage.getItem('moneyFilters');
+                    }
+                  })();
                   const prev = raw ? JSON.parse(raw) : {};
-                  window.localStorage.setItem('moneyFilters', JSON.stringify({ ...prev, filterVenueId: '' }));
+                  try {
+                    const userRaw = window.localStorage.getItem('userData');
+                    const user = userRaw ? JSON.parse(userRaw) : null;
+                    const userId = user?.id || user?.email || null;
+                    const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+                    window.localStorage.setItem(key, JSON.stringify({ ...prev, filterVenueId: '' }));
+                  } catch {
+                    window.localStorage.setItem('moneyFilters', JSON.stringify({ ...prev, filterVenueId: '' }));
+                  }
                 }
               } catch {}
             }} />
@@ -567,9 +691,27 @@ export default function Money({ route }) {
                   setVenueFilterOpen(false);
                   try {
                     if (typeof window !== 'undefined' && window.localStorage) {
-                      const raw = window.localStorage.getItem('moneyFilters');
+                      const raw = (() => {
+                        try {
+                          const userRaw = window.localStorage.getItem('userData');
+                          const user = userRaw ? JSON.parse(userRaw) : null;
+                          const userId = user?.id || user?.email || null;
+                          const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+                          return window.localStorage.getItem(key);
+                        } catch {
+                          return window.localStorage.getItem('moneyFilters');
+                        }
+                      })();
                       const prev = raw ? JSON.parse(raw) : {};
-                      window.localStorage.setItem('moneyFilters', JSON.stringify({ ...prev, filterVenueId: item.id }));
+                      try {
+                        const userRaw = window.localStorage.getItem('userData');
+                        const user = userRaw ? JSON.parse(userRaw) : null;
+                        const userId = user?.id || user?.email || null;
+                        const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+                        window.localStorage.setItem(key, JSON.stringify({ ...prev, filterVenueId: item.id }));
+                      } catch {
+                        window.localStorage.setItem('moneyFilters', JSON.stringify({ ...prev, filterVenueId: item.id }));
+                      }
                     }
                   } catch {}
                 }} style={styles.modalRow}>
@@ -687,7 +829,17 @@ function TransactionRow({ item, clientsById, setFilterClientId, setFilterCategor
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
-        const raw = window.localStorage.getItem('moneySortAsc');
+        const raw = (() => {
+          try {
+            const userRaw = window.localStorage.getItem('userData');
+            const user = userRaw ? JSON.parse(userRaw) : null;
+            const userId = user?.id || user?.email || null;
+            const key = userId ? `moneySortAsc_${userId}` : 'moneySortAsc';
+            return window.localStorage.getItem(key);
+          } catch {
+            return window.localStorage.getItem('moneySortAsc');
+          }
+        })();
         if (raw !== null) {
           const parsed = JSON.parse(raw);
           if (parsed === true || parsed === false) setSortAsc(parsed);
@@ -714,10 +866,28 @@ function TransactionRow({ item, clientsById, setFilterClientId, setFilterCategor
               setFilterClientId?.(item.clientId);
               try {
                 if (typeof window !== 'undefined' && window.localStorage) {
-                  const raw = window.localStorage.getItem('moneyFilters');
+                  const raw = (() => {
+                    try {
+                      const userRaw = window.localStorage.getItem('userData');
+                      const user = userRaw ? JSON.parse(userRaw) : null;
+                      const userId = user?.id || user?.email || null;
+                      const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+                      return window.localStorage.getItem(key);
+                    } catch {
+                      return window.localStorage.getItem('moneyFilters');
+                    }
+                  })();
                   const prev = raw ? JSON.parse(raw) : {};
                   const payload = { ...prev, filterClientId: item.clientId };
-                  window.localStorage.setItem('moneyFilters', JSON.stringify(payload));
+                  try {
+                    const userRaw = window.localStorage.getItem('userData');
+                    const user = userRaw ? JSON.parse(userRaw) : null;
+                    const userId = user?.id || user?.email || null;
+                    const key = userId ? `moneyFilters_${userId}` : 'moneyFilters';
+                    window.localStorage.setItem(key, JSON.stringify(payload));
+                  } catch {
+                    window.localStorage.setItem('moneyFilters', JSON.stringify(payload));
+                  }
                 }
               } catch {}
             }}>
@@ -816,7 +986,19 @@ function ClientPicker({ clientId, setClientId, options = [] }) {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     try {
-      const raw = (typeof window !== 'undefined' && window.localStorage) ? window.localStorage.getItem('clients') : null;
+      const raw = (typeof window !== 'undefined' && window.localStorage)
+        ? (() => {
+            try {
+              const userRaw = window.localStorage.getItem('userData');
+              const user = userRaw ? JSON.parse(userRaw) : null;
+              const userId = user?.id || user?.email || null;
+              const key = userId ? `clients_${userId}` : 'clients';
+              return window.localStorage.getItem(key);
+            } catch {
+              return window.localStorage.getItem('clients');
+            }
+          })()
+        : null;
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length) setLocalClients(parsed);
